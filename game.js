@@ -23,6 +23,7 @@ const baseShootInterval = 400;
 let playerAtkSpeed = 1.0;
 let playerBulletSpeed = 5;
 let playerEnergyRegenEfficiency = 1.0;
+let playerPierceChance = 0;
 
 // 玩家飞机（使用 Claude logo）
 const player = {
@@ -256,6 +257,7 @@ function fireHomingMissiles() {
 			y: player.y - player.h / 2,
 			angle: t * spread,
 			_missile: true,
+			damage: 5,
 			speed: 6.5,
 			turnRate: 0.14
 		});
@@ -502,7 +504,7 @@ function update(timestamp) {
 		const totalWidth = spacing * (count - 1);
 		for (let i = 0; i < count; i++) {
 			const bx = player.x - totalWidth / 2 + spacing * i;
-			bullets.push({ x: bx, y: player.y - player.h / 2, angle: 0 });
+			bullets.push({ x: bx, y: player.y - player.h / 2, angle: 0, damage: 1 });
 		}
 		lastShot = timestamp;
 
@@ -653,6 +655,9 @@ function update(timestamp) {
 			} else if (p.type === 'energyregen') {
 				playerEnergyRegenEfficiency = Math.min(3, playerEnergyRegenEfficiency + 0.05);
 				showNotification('🎈 能量再生效率 +5%');
+			} else if (p.type === 'pierce') {
+				playerPierceChance = Math.min(1, playerPierceChance + 0.05);
+				showNotification('🌀 穿透 +5%');
 			}
 			return false;
 		}
@@ -663,16 +668,19 @@ function update(timestamp) {
 	notifications = notifications.filter(n => timestamp - n.born < 2200);
 
 	// 碰撞：玩家子弹击中敌人
-	bullets.forEach((b, bi) => {
+	bullets.forEach((b) => {
 		if (b._dead) return;
 		enemies.forEach((e, ei) => {
 			if (b._dead) return;
 			if (Math.abs(b.x - e.x) < e.w / 2 && Math.abs(b.y - e.y) < e.h / 2) {
-				b._dead = true;
+				if (Math.random() >= playerPierceChance) {
+					b._dead = true;
+				}
 				if (Math.random() < 1 / player.bulletCount) {
 					addSkillEnergy(1);
 				}
-				e.hp--;
+				const damage = b.damage ?? (b._missile ? 5 : 1);
+				e.hp -= damage;
 				// 折射判定
 				if (Math.random() < player.ricochetChance) {
 					const others = enemies.filter((_, j) => j !== ei);
@@ -687,7 +695,7 @@ function update(timestamp) {
 						const predX = nearest.x;
 						const predY = nearest.y + nearest.speed * travelFrames;
 						const angle = Math.atan2(predX - b.x, -(predY - b.y));
-						bullets.push({ x: b.x, y: b.y, angle, _ricochet: (b._ricochet || 0) + 1 });
+						bullets.push({ x: b.x, y: b.y, angle, damage: 1, _ricochet: (b._ricochet || 0) + 1 });
 					}
 				}
 				if (e.hp <= 0) {
@@ -708,6 +716,7 @@ function update(timestamp) {
 							...Array(10).fill('movespeed'),
 							...Array(10).fill('ricochet'),
 							...Array(10).fill('energyregen'),
+							...Array(10).fill('pierce'),
 							...Array(healWeight).fill('heal'),
 						];
 						powerups.push({ x: e.x, y: e.y, type: weightedTypes[Math.floor(Math.random() * weightedTypes.length)] });
@@ -765,7 +774,7 @@ function update(timestamp) {
 						} else {
 							angle = (Math.random() - 0.5) * (Math.PI / 2);
 						}
-						bullets.push({ x: player.x, y: player.y - player.h / 2, angle, _parryCounter: true });
+						bullets.push({ x: player.x, y: player.y - player.h / 2, angle, damage: 1, _parryCounter: true });
 					}
 					showNotification('⚡️完美格挡！');
 					if (i < enemyBullets.length) enemyBullets.splice(i, 1);
@@ -846,7 +855,8 @@ function draw() {
 			movespeed: { color: '#a78bfa', label: '🚀' },
 			shield: { color: '#7fff7f', label: '🛡️' },
 			ricochet: { color: '#ff9ef7', label: '🔀' },
-			energyregen: { color: '#4dabf7', label: '🎈' }
+			energyregen: { color: '#4dabf7', label: '🎈' },
+			pierce: { color: '#b8f7ff', label: '🌀' }
 		}[p.type];
 		ctx.save();
 		ctx.shadowColor = cfg.color; ctx.shadowBlur = 14;
@@ -936,6 +946,7 @@ function resetGameState() {
 	playerAtkSpeed = 1.0;
 	playerBulletSpeed = 7;
 	playerEnergyRegenEfficiency = 1.0;
+	playerPierceChance = 0;
 	player.speed = 1.5;
 	player.x = canvas.width / 2; player.y = canvas.height - 80;
 	player.bulletCount = 1;
