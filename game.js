@@ -14,7 +14,8 @@ let keys = {};
 let lastEnemySpawn = 0;
 let enemySpawnInterval = 1500;
 let lastShot = 0;
-let shootInterval = 400;
+const baseShootInterval = 400;
+let playerAtkSpeed = 1.0;
 let playerBulletSpeed = 5;
 
 // 玩家飞机（使用 Claude logo）
@@ -165,7 +166,7 @@ function update(timestamp) {
 	if ((keys['ArrowDown'] || keys['s']) && player.y + player.h / 2 < canvas.height) player.y += player.speed;
 
 	// 射击
-	if (keys[' '] && timestamp - lastShot > shootInterval) {
+	if (keys[' '] && timestamp - lastShot > baseShootInterval / playerAtkSpeed) {
 		const count = player.bulletCount;
 		const spacing = count > 1 ? Math.min(15, 100 / (count - 1)) : 0;
 		const totalWidth = spacing * (count - 1);
@@ -227,11 +228,14 @@ function update(timestamp) {
 			} else if (p.type === 'ricochet') {
 				player.ricochetChance = Math.min(1, player.ricochetChance + 0.1);
 				showNotification('🔀 折射概率 +10%（共' + Math.round(player.ricochetChance * 100) + '%）');
+			} else if (p.type === 'heal') {
+				lives += 1;
+				showNotification('❤️ 生命值 +1（共 ' + lives + '）');
 			} else if (p.type === 'atkspeed') {
-				shootInterval = Math.max(50, shootInterval - 40);
-				showNotification('🔥 攻击速度提升！冷却 ' + shootInterval + 'ms');
+				playerAtkSpeed = Math.min(10, playerAtkSpeed + 0.1);
+				showNotification('🔥 攻击速度 ' + Math.round(playerAtkSpeed * 100) + '%（冷却 ' + Math.round(baseShootInterval / playerAtkSpeed) + 'ms）');
 			} else if (p.type === 'bulletspeed') {
-				playerBulletSpeed = Math.min(playerBulletSpeed + 0.5, 30);
+				playerBulletSpeed = Math.min(playerBulletSpeed + 0.5, 35);
 				showNotification('🧨 子弹速度提升！速度 ' + playerBulletSpeed.toFixed(1));
 			} else if (p.type === 'movespeed') {
 				player.speed = Math.min(player.speed + 0.15, 6);
@@ -282,9 +286,18 @@ function update(timestamp) {
 					level = Math.floor(score / 200) + 1;
 					document.getElementById('level').textContent = level;
 					// 随机掉落道具
-					if (Math.random() < 0.2) {
-						const types = ['multishot', 'atkspeed', 'shield', 'bulletspeed', 'movespeed', 'ricochet'];
-						powerups.push({ x: e.x, y: e.y, type: types[Math.floor(Math.random() * types.length)] });
+					if (Math.random() < 0.4) {
+						// 权重表
+						const weightedTypes = [
+							...Array(10).fill('multishot'),
+							...Array(10).fill('atkspeed'),
+							...Array(10).fill('shield'),
+							...Array(10).fill('bulletspeed'),
+							...Array(10).fill('movespeed'),
+							...Array(10).fill('ricochet'),
+							...Array(3).fill('heal'),
+						];
+						powerups.push({ x: e.x, y: e.y, type: weightedTypes[Math.floor(Math.random() * weightedTypes.length)] });
 					}
 					enemies.splice(ei, 1);
 				}
@@ -351,6 +364,7 @@ function draw() {
 	// 道具
 	powerups.forEach(p => {
 		const cfg = {
+			heal: { color: '#ff4d6d', label: '❤️' },
 			multishot: { color: '#00e5ff', label: '⚔️' },
 			atkspeed: { color: '#ffe600', label: '🔥' },
 			bulletspeed: { color: '#00ffcc', label: '🧨' },
@@ -428,7 +442,7 @@ function endGame() {
 function restartGame() {
 	score = 0; lives = 3; level = 1;
 	bullets = []; enemyBullets = []; enemies = []; explosions = []; powerups = [];
-	shootInterval = 200;
+	playerAtkSpeed = 1.0;
 	playerBulletSpeed = 7;
 	player.speed = 1.5;
 	player.x = canvas.width / 2; player.y = canvas.height - 80;
