@@ -41,7 +41,7 @@ const player = {
 player.img.crossOrigin = 'anonymous';
 player.img.onload = () => { player.imgLoaded = true; };
 player.img.onerror = () => { player.imgLoaded = false; };
-player.img.src = 'https://cdn.prod.website-files.com/661ac3a04bde6c51486aa5b0/678d9f03dcdc3d0d30a0b8a0_claude-ai-icon.png';
+player.img.src = 'assets/textures/claude.png';
 
 // 生成星空背景
 for (let i = 0; i < 120; i++) {
@@ -189,6 +189,79 @@ function createExplosion(x, y, big) {
 	});
 }
 
+// 火花粒子池
+const sparks = [];
+
+const sfxPerfectParry = new Audio('assets/sounds/perfect-parry.wav');
+const sfxUnexactParry = new Audio('assets/sounds/unexact-parry.wav');
+const sfxPowerup = new Audio('assets/sounds/powerup.mp3');
+
+let shockwaves = [];
+
+function createParrySparks(x, y, perfect) {
+	const colors = perfect
+		? ['#00ffff', '#ffffff', '#aaffff', '#80ffff']
+		: ['#50a0ff', '#ffffff', '#aad4ff', '#ffd700'];
+	const count = perfect ? 18 : 10;
+	// 完美格挡：在格挡点生成一圈向外扩散的冲击波
+	if (perfect) {
+		shockwaves.push({ x, y, r: 6, maxR: 70, life: 1 });
+	}
+	for (let i = 0; i < count; i++) {
+		// 完美格挡：火花朝玩家前方（上方）锥形喷射；普通格挡保持四散
+		const angle = perfect
+			? -Math.PI / 2 + (Math.random() - 0.5) * (Math.PI * 2 / 3)
+			: Math.random() * Math.PI * 2;
+		const speed = Math.random() * (perfect ? 4.5 : 3) + (perfect ? 2.5 : 1.5);
+		sparks.push({
+			x, y,
+			vx: Math.cos(angle) * speed,
+			vy: Math.sin(angle) * speed,
+			life: 1,
+			decay: perfect ? (Math.random() * 0.008 + 0.004) : (Math.random() * 0.02 + 0.01),
+			r: Math.random() * (perfect ? 3 : 2) + 1,
+			color: colors[Math.floor(Math.random() * colors.length)]
+		});
+	}
+}
+
+function updateAndDrawSparks() {
+	for (let i = sparks.length - 1; i >= 0; i--) {
+		const s = sparks[i];
+		s.x += s.vx;
+		s.y += s.vy;
+		s.vy += 0.08; // 重力
+		s.life -= s.decay;
+		if (s.life <= 0) { sparks.splice(i, 1); continue; }
+		ctx.save();
+		ctx.globalAlpha = s.life;
+		ctx.fillStyle = s.color;
+		ctx.shadowColor = s.color;
+		ctx.shadowBlur = 6;
+		ctx.beginPath();
+		ctx.arc(s.x, s.y, s.r * s.life, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.restore();
+	}
+	// 冲击波：快速向外扩张的圆环，随生命衰减淡出
+	for (let i = shockwaves.length - 1; i >= 0; i--) {
+		const sw = shockwaves[i];
+		sw.r += (sw.maxR - sw.r) * 0.15;
+		sw.life -= 0.04;
+		if (sw.life <= 0) { shockwaves.splice(i, 1); continue; }
+		ctx.save();
+		ctx.globalAlpha = sw.life;
+		ctx.strokeStyle = '#aaffff';
+		ctx.shadowColor = '#00ffff';
+		ctx.shadowBlur = 12;
+		ctx.lineWidth = 3 * sw.life;
+		ctx.beginPath();
+		ctx.arc(sw.x, sw.y, sw.r, 0, Math.PI * 2);
+		ctx.stroke();
+		ctx.restore();
+	}
+}
+
 function update(timestamp) {
 	if (!gameRunning) return;
 
@@ -199,7 +272,8 @@ function update(timestamp) {
 	if ((keys['ArrowDown'] || keys['s']) && player.y + player.h / 2 < canvas.height) player.y += player.speed;
 
 	// 射击
-	if (keys[' '] && timestamp - lastShot > baseShootInterval / playerAtkSpeed) {
+	if ((keys['j'] || keys['J']) && timestamp - lastShot > baseShootInterval / playerAtkSpeed) {
+		playPewSound();
 		const count = player.bulletCount;
 		const spacing = count > 1 ? Math.min(15, 100 / (count - 1)) : 0;
 		const totalWidth = spacing * (count - 1);
@@ -274,6 +348,8 @@ function update(timestamp) {
 	// 玩家拾取道具
 	powerups = powerups.filter(p => {
 		if (Math.abs(p.x - player.x) < player.w / 2 + 14 && Math.abs(p.y - player.y) < player.h / 2 + 14) {
+			sfxPowerup.currentTime = 0;
+			sfxPowerup.play();
 			if (p.type === 'multishot') {
 				player.bulletCount = Math.min(player.bulletCount + 1, 20);
 				showNotification('⚔️ 多重射击 +1（共' + player.bulletCount + '发）');
@@ -376,6 +452,12 @@ function update(timestamp) {
 			if (player.parryActive) {
 				const parryElapsed = timestamp - player.parryStart;
 				if (parryElapsed < 200) {
+					// 完美格挡：喷火花并立即结束格挡状态
+					sfxPerfectParry.currentTime = 0;
+					sfxPerfectParry.play();
+					createParrySparks(player.x, player.y, true);
+					player.parryActive = false;
+					player.parryCooldownUntil = timestamp + 1000;
 					// 完美格挡：免伤并向发射者（敌机）预测位置发射子弹
 					const shooter = (i < enemyBullets.length && obj.shooter) ? obj.shooter : obj;
 					const dist = Math.hypot(shooter.x - player.x, shooter.y - player.y);
@@ -389,6 +471,9 @@ function update(timestamp) {
 					else enemies.splice(i - enemyBullets.length, 1);
 					return;
 				} else {
+					// 不精准格挡音效
+					sfxUnexactParry.currentTime = 0;
+					sfxUnexactParry.play();
 					// 后0.3秒：25%概率免伤，但重置攻击冷却
 					if (Math.random() < 0.25) {
 						lastShot = timestamp;
@@ -484,6 +569,8 @@ function draw() {
 
 	// 爆炸
 	explosions.forEach(ex => drawExplosion(ex));
+	// 格挡火花
+	updateAndDrawSparks();
 
 	// 道具提示通知
 	const now = performance.now();
@@ -539,4 +626,37 @@ function restartGame() {
 	requestAnimationFrame(gameLoop);
 }
 
-requestAnimationFrame(gameLoop);
+// 资源预加载：等待音效与玩家图片加载完成后再隐藏加载页并开始游戏
+function startGame() {
+	const loadingEl = document.getElementById('loading');
+	if (loadingEl) loadingEl.style.display = 'none';
+	requestAnimationFrame(gameLoop);
+}
+
+(function preloadAssets() {
+	const tasks = [];
+	// 音效：等待可完整播放（error 也算结束，避免缺资源时卡死）
+	[
+		sfxPerfectParry,
+		sfxUnexactParry,
+		sfxPowerup,
+		...pewSoundPool
+	].forEach(a => {
+		a.preload = 'auto';
+		tasks.push(new Promise(resolve => {
+			if (a.readyState >= 4) return resolve();
+			a.addEventListener('canplaythrough', resolve, { once: true });
+			a.addEventListener('error', resolve, { once: true });
+			a.load();
+		}));
+	});
+	// 玩家图片
+	tasks.push(new Promise(resolve => {
+		if (player.imgLoaded) return resolve();
+		player.img.addEventListener('load', resolve, { once: true });
+		player.img.addEventListener('error', resolve, { once: true });
+	}));
+	// 兜底：最多等待 8 秒，防止个别资源加载失败时一直停在加载页
+	const timeout = new Promise(resolve => setTimeout(resolve, 8000));
+	Promise.race([Promise.all(tasks), timeout]).then(startGame);
+})();
