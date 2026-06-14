@@ -230,8 +230,9 @@ function drawBullet(b, color) {
 }
 
 function addSkillEnergy(amount) {
+	const readyed = skillEnergy >= skillEnergyMax;
 	skillEnergy = Math.min(skillEnergyMax, skillEnergy + amount);
-	if (skillEnergy >= skillEnergyMax) {
+	if (!readyed && skillEnergy >= skillEnergyMax) {
 		showNotification("🌟弹射陨星 已就绪！");
 	}
 }
