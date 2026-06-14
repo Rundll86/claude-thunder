@@ -192,9 +192,25 @@ function createExplosion(x, y, big) {
 // 火花粒子池
 const sparks = [];
 
+const bgm = new Audio('assets/sounds/Another Disaster.mp3');
+bgm.loop = true;
+let bgmStarted = false;
+function startBgmAfterInteraction() {
+	if (bgmStarted) return;
+	bgmStarted = true;
+	bgm.play().catch(() => {
+		bgmStarted = false;
+	});
+}
+['keydown', 'mousedown', 'touchstart'].forEach(eventName => {
+	window.addEventListener(eventName, startBgmAfterInteraction, { passive: true });
+});
 const sfxPerfectParry = new Audio('assets/sounds/perfect-parry.wav');
 const sfxUnexactParry = new Audio('assets/sounds/unexact-parry.wav');
 const sfxPowerup = new Audio('assets/sounds/powerup.mp3');
+const sfxPewPool = Array.from({ length: 10 }, () => new Audio('assets/sounds/pew.wav'));
+const sfxHurt = new Audio('assets/sounds/hurt.wav');
+const sfxDie = new Audio('assets/sounds/die.wav');
 
 let shockwaves = [];
 
@@ -273,7 +289,6 @@ function update(timestamp) {
 
 	// 射击
 	if ((keys['j'] || keys['J']) && timestamp - lastShot > baseShootInterval / playerAtkSpeed) {
-		playPewSound();
 		const count = player.bulletCount;
 		const spacing = count > 1 ? Math.min(15, 100 / (count - 1)) : 0;
 		const totalWidth = spacing * (count - 1);
@@ -282,6 +297,14 @@ function update(timestamp) {
 			bullets.push({ x: bx, y: player.y - player.h / 2, angle: 0 });
 		}
 		lastShot = timestamp;
+
+		let pew = sfxPewPool.find(a => a.paused || a.ended);
+		if (!pew) {
+			pew = new Audio('assets/sounds/pew.wav');
+			if (sfxPewPool.length < 30) sfxPewPool.push(pew);
+		}
+		pew.currentTime = 0;
+		pew.play().catch(() => { });
 	}
 
 	// 护盾计时
@@ -485,6 +508,8 @@ function update(timestamp) {
 					// 未格挡，正常受伤
 				}
 			}
+			sfxHurt.currentTime = 0;
+			sfxHurt.play().catch(() => { });
 			createExplosion(player.x, player.y, true);
 			if (i < enemyBullets.length) enemyBullets.splice(i, 1);
 			else enemies.splice(i - enemyBullets.length, 1);
@@ -604,6 +629,11 @@ function gameLoop(timestamp) {
 
 function endGame() {
 	gameRunning = false;
+	bgm.pause();
+	bgm.currentTime = 0;
+	bgmStarted = false;
+	sfxDie.currentTime = 0;
+	sfxDie.play().catch(() => { });
 	document.getElementById('finalScore').textContent = score;
 	document.getElementById('gameOver').style.display = 'block';
 }
@@ -636,12 +666,7 @@ function startGame() {
 (function preloadAssets() {
 	const tasks = [];
 	// 音效：等待可完整播放（error 也算结束，避免缺资源时卡死）
-	[
-		sfxPerfectParry,
-		sfxUnexactParry,
-		sfxPowerup,
-		...pewSoundPool
-	].forEach(a => {
+	[bgm, sfxPerfectParry, sfxUnexactParry, sfxPowerup, sfxPewPool[0], sfxHurt, sfxDie].forEach(a => {
 		a.preload = 'auto';
 		tasks.push(new Promise(resolve => {
 			if (a.readyState >= 4) return resolve();
