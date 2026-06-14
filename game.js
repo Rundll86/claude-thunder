@@ -655,7 +655,7 @@ function update(timestamp) {
 					sfxPerfectParry.currentTime = 0;
 					sfxPerfectParry.play();
 					createParrySparks(player.x, player.y, true);
-					addSkillEnergy(5);
+					addSkillEnergy(12);
 					player.parryActive = false;
 					player.parryCooldownUntil = timestamp + 1000;
 					// 完美格挡：免伤并向包含发射者在内的3个随机敌人发射反击子弹；敌人不足则随机散射补足
@@ -693,7 +693,7 @@ function update(timestamp) {
 					// 后0.3秒：25%概率免伤，但重置攻击冷却
 					if (Math.random() < 0.25) {
 						lastShot = timestamp;
-						addSkillEnergy(2);
+						addSkillEnergy(3);
 						showNotification('🛡️格挡！');
 						if (i < enemyBullets.length) enemyBullets.splice(i, 1);
 						else enemies.splice(i - enemyBullets.length, 1);
