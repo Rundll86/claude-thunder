@@ -231,6 +231,9 @@ function drawBullet(b, color) {
 
 function addSkillEnergy(amount) {
 	skillEnergy = Math.min(skillEnergyMax, skillEnergy + amount);
+	if (skillEnergy >= skillEnergyMax) {
+		showNotification("🌟弹射陨星 已就绪！");
+	}
 }
 
 function fireHomingMissiles() {
@@ -441,7 +444,7 @@ function update(timestamp) {
 	if (skillKeyDown && !skillSpaceWasDown && skillEnergy >= skillEnergyMax) {
 		skillEnergy -= skillEnergyMax;
 		fireHomingMissiles();
-		showNotification('🚀 追踪导弹发射！');
+		showNotification('🌟 Fire！');
 	}
 	skillSpaceWasDown = skillKeyDown;
 
@@ -709,22 +712,20 @@ function update(timestamp) {
 			else enemies.splice(i - enemyBullets.length, 1);
 			lives--;
 			addSkillEnergy(2);
+			showNotification(`💔受损，剩余${lives}点生命值！`);
 			document.getElementById('lives').textContent = lives;
 			if (lives <= 0) endGame();
 			else { player.x = canvas.width / 2; player.y = canvas.height - 80; }
 		}
 	});
-
-	function showNotification(text) {
-		notifications.push({ text, born: performance.now() });
-		if (notifications.length > 4) notifications.shift();
-	}
-
 	// 更新爆炸
 	explosions.forEach(ex => ex.frame++);
 	explosions = explosions.filter(ex => ex.frame < ex.maxFrame);
 }
-
+function showNotification(text) {
+	notifications.push({ text, born: performance.now() });
+	if (notifications.length > 4) notifications.shift();
+}
 function draw() {
 	// 背景
 	ctx.fillStyle = '#050a1a';
