@@ -16,6 +16,7 @@ let skillSpaceWasDown = false;
 let keys = {};
 let lastEnemySpawn = 0;
 let enemySpawnInterval = 1500;
+const maxEnemies = 7;
 let lastShot = 0;
 const baseShootInterval = 400;
 let playerAtkSpeed = 1.0;
@@ -469,9 +470,9 @@ function update(timestamp) {
 		player.parryCooldownUntil = timestamp + 500;
 	}
 
-	// 生成敌人
+	// 生成敌人：场上最多同时存在 7 个敌人
 	const interval = Math.max(500, enemySpawnInterval - (level - 1) * 150);
-	if (timestamp - lastEnemySpawn > interval) {
+	if (timestamp - lastEnemySpawn > interval && enemies.length < maxEnemies) {
 		spawnEnemy();
 		lastEnemySpawn = timestamp;
 	}
