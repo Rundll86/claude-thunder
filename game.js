@@ -31,7 +31,9 @@ const player = {
 	ricochetChance: 0,
 	shieldActive: false,
 	shieldHits: 0,
-	shieldExpiry: 0
+	shieldExpiry: 0,
+	parryActive: false,
+	parryStart: 0
 };
 
 // 加载 Claude logo
@@ -57,10 +59,11 @@ document.addEventListener('keyup', e => { keys[e.key] = false; });
 function spawnEnemy() {
 	const types = ['normal', 'fast', 'tank'];
 	const type = level < 2 ? 'normal' : types[Math.floor(Math.random() * (level < 4 ? 2 : 3))];
+	const lvlBonus = Math.floor((level - 1) / 2);
 	let cfg = {
-		normal: { w: 40, h: 40, hp: 1, speed: 0.6 + level * 0.08, color: '#e74c3c', score: 10, shootChance: 0.003 },
-		fast: { w: 30, h: 30, hp: 1, speed: 1.2 + level * 0.12, color: '#e67e22', score: 20, shootChance: 0.002 },
-		tank: { w: 52, h: 52, hp: 3, speed: 0.4 + level * 0.04, color: '#8e44ad', score: 40, shootChance: 0.004 }
+		normal: { w: 40, h: 40, hp: 1 + lvlBonus, speed: 0.6 + level * 0.08, color: '#e74c3c', score: 10, shootChance: 0.003 },
+		fast: { w: 30, h: 30, hp: 1 + lvlBonus, speed: 1.2 + level * 0.12, color: '#e67e22', score: 20, shootChance: 0.002 },
+		tank: { w: 52, h: 52, hp: 3 + lvlBonus * 2, speed: 0.4 + level * 0.04, color: '#8e44ad', score: 40, shootChance: 0.004 }
 	}[type];
 	enemies.push({
 		x: Math.random() * (canvas.width - cfg.w) + cfg.w / 2,
@@ -92,6 +95,33 @@ function drawPlayer() {
 		ctx.closePath(); ctx.fill();
 		ctx.restore();
 	}
+	// 格挡护盾视觉（扇环，200°朝上）
+	if (player.parryActive) {
+		const now = performance.now();
+		const elapsed = now - player.parryStart;
+		const perfect = elapsed < 200;
+		const alpha = perfect ? 0.45 : 0.22;
+		const fillColor = perfect ? `rgba(0,255,255,${alpha})` : `rgba(80,160,255,${alpha})`;
+		const glowColor = perfect ? '#00ffff' : '#50a0ff';
+		const outerR = player.w * 0.95;
+		const innerR = player.w * 0.55;
+		// 200° 圆心角，朝正上方对称展开：-90°±100°
+		const startAngle = (-90 - 100) * Math.PI / 180;  // -190° = 170°
+		const endAngle = (-90 + 100) * Math.PI / 180;  // +10°
+		ctx.save();
+		ctx.shadowColor = glowColor;
+		ctx.shadowBlur = perfect ? 28 : 14;
+		ctx.beginPath();
+		ctx.arc(player.x, player.y, outerR, startAngle, endAngle);
+		ctx.arc(player.x, player.y, innerR, endAngle, startAngle, true);
+		ctx.closePath();
+		ctx.fillStyle = fillColor;
+		ctx.fill();
+		ctx.strokeStyle = glowColor;
+		ctx.lineWidth = perfect ? 2.5 : 1.5;
+		ctx.stroke();
+		ctx.restore();
+	}
 }
 
 function drawEnemy(e) {
@@ -105,13 +135,15 @@ function drawEnemy(e) {
 	ctx.lineTo(e.x, e.y - e.h / 4);
 	ctx.lineTo(e.x + e.w / 2, e.y - e.h / 2);
 	ctx.closePath(); ctx.fill();
-	// 血条（tank）
-	if (e.type === 'tank' && e.hp < e.maxHp) {
+	// 血条（所有敌人，hp > 1 或已受伤时显示）
+	if (e.maxHp > 1 || e.hp < e.maxHp) {
 		const bw = e.w, bh = 5;
-		ctx.fillStyle = '#555';
-		ctx.fillRect(e.x - bw / 2, e.y - e.h / 2 - 8, bw, bh);
-		ctx.fillStyle = '#2ecc71';
-		ctx.fillRect(e.x - bw / 2, e.y - e.h / 2 - 8, bw * (e.hp / e.maxHp), bh);
+		const ratio = e.hp / e.maxHp;
+		const barColor = ratio > 0.5 ? '#2ecc71' : ratio > 0.25 ? '#f39c12' : '#e74c3c';
+		ctx.fillStyle = '#333';
+		ctx.fillRect(e.x - bw / 2, e.y - e.h / 2 - 9, bw, bh);
+		ctx.fillStyle = barColor;
+		ctx.fillRect(e.x - bw / 2, e.y - e.h / 2 - 9, bw * ratio, bh);
 	}
 	ctx.restore();
 }
@@ -183,6 +215,20 @@ function update(timestamp) {
 		player.shieldHits = 0;
 	}
 
+	// K键格挡
+	if (keys['k'] || keys['K']) {
+		if (!player.parryActive) {
+			player.parryActive = true;
+			player.parryStart = timestamp;
+		}
+	} else {
+		player.parryActive = false;
+	}
+	// 超时自动结束
+	if (player.parryActive && timestamp - player.parryStart > 500) {
+		player.parryActive = false;
+	}
+
 	// 生成敌人
 	const interval = Math.max(500, enemySpawnInterval - (level - 1) * 150);
 	if (timestamp - lastEnemySpawn > interval) {
@@ -209,7 +255,7 @@ function update(timestamp) {
 		e.y += e.speed;
 		// 敌人每1秒射击一次，出生即可射击
 		if (timestamp - e.lastShot >= 2500) {
-			enemyBullets.push({ x: e.x, y: e.y + e.h / 2, angle: 0 });
+			enemyBullets.push({ x: e.x, y: e.y + e.h / 2, angle: 0, shooter: e });
 			e.lastShot = timestamp;
 		}
 	});
@@ -230,6 +276,7 @@ function update(timestamp) {
 				showNotification('🔀 折射概率 +10%（共' + Math.round(player.ricochetChance * 100) + '%）');
 			} else if (p.type === 'heal') {
 				lives += 1;
+				document.getElementById('lives').textContent = lives;
 				showNotification('❤️ 生命值 +1（共 ' + lives + '）');
 			} else if (p.type === 'atkspeed') {
 				playerAtkSpeed = Math.min(10, playerAtkSpeed + 0.1);
@@ -295,7 +342,7 @@ function update(timestamp) {
 							...Array(10).fill('bulletspeed'),
 							...Array(10).fill('movespeed'),
 							...Array(10).fill('ricochet'),
-							...Array(3).fill('heal'),
+							...Array(1).fill('heal'),
 						];
 						powerups.push({ x: e.x, y: e.y, type: weightedTypes[Math.floor(Math.random() * weightedTypes.length)] });
 					}
@@ -311,12 +358,41 @@ function update(timestamp) {
 	[...enemyBullets, ...enemies].forEach((obj, i) => {
 		const dx = obj.x - player.x, dy = obj.y - player.y;
 		if (Math.sqrt(dx * dx + dy * dy) < pr + (obj.h ? obj.h / 2 - 8 : 4)) {
+			// 道具护盾优先
 			if (player.shieldActive && player.shieldHits > 0) {
 				player.shieldHits--;
 				if (player.shieldHits <= 0) player.shieldActive = false;
 				if (i < enemyBullets.length) enemyBullets.splice(i, 1);
 				else enemies.splice(i - enemyBullets.length, 1);
 				return;
+			}
+			// K键格挡盾
+			if (player.parryActive) {
+				const parryElapsed = timestamp - player.parryStart;
+				if (parryElapsed < 200) {
+					// 完美格挡：免伤并向发射者（敌机）预测位置发射子弹
+					const shooter = (i < enemyBullets.length && obj.shooter) ? obj.shooter : obj;
+					const dist = Math.hypot(shooter.x - player.x, shooter.y - player.y);
+					const travelTime = dist / playerBulletSpeed;
+					const targetX = shooter.x;
+					const targetY = shooter.y + (shooter.speed || 0) * travelTime;
+					const angle = Math.atan2(targetX - player.x, -(targetY - player.y));
+					bullets.push({ x: player.x, y: player.y - player.h / 2, angle, _parryCounter: true });
+					showNotification('⚡️完美格挡！');
+					if (i < enemyBullets.length) enemyBullets.splice(i, 1);
+					else enemies.splice(i - enemyBullets.length, 1);
+					return;
+				} else {
+					// 后0.3秒：25%概率免伤，但重置攻击冷却
+					if (Math.random() < 0.25) {
+						lastShot = timestamp;
+						showNotification('🛡️格挡！');
+						if (i < enemyBullets.length) enemyBullets.splice(i, 1);
+						else enemies.splice(i - enemyBullets.length, 1);
+						return;
+					}
+					// 未格挡，正常受伤
+				}
 			}
 			createExplosion(player.x, player.y, true);
 			if (i < enemyBullets.length) enemyBullets.splice(i, 1);
