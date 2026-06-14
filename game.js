@@ -95,7 +95,7 @@ function drawPlayer() {
 		ctx.closePath(); ctx.fill();
 		ctx.restore();
 	}
-	// 格挡护盾视觉（扇环，200°朝上）
+	// 格挡护盾视觉
 	if (player.parryActive) {
 		const now = performance.now();
 		const elapsed = now - player.parryStart;
@@ -103,11 +103,11 @@ function drawPlayer() {
 		const alpha = perfect ? 0.45 : 0.22;
 		const fillColor = perfect ? `rgba(0,255,255,${alpha})` : `rgba(80,160,255,${alpha})`;
 		const glowColor = perfect ? '#00ffff' : '#50a0ff';
-		const outerR = player.w * 0.95;
-		const innerR = player.w * 0.55;
-		// 200° 圆心角，朝正上方对称展开：-90°±100°
-		const startAngle = (-90 - 100) * Math.PI / 180;  // -190° = 170°
-		const endAngle = (-90 + 100) * Math.PI / 180;  // +10°
+		const outerR = player.w * 0.7;
+		const innerR = player.w * 0.6;
+		const centralAngle = 120;
+		const startAngle = (-90 - centralAngle / 2) * Math.PI / 180;  // -190° = 170°
+		const endAngle = (-90 + centralAngle / 2) * Math.PI / 180;  // +10°
 		ctx.save();
 		ctx.shadowColor = glowColor;
 		ctx.shadowBlur = perfect ? 28 : 14;
