@@ -250,8 +250,9 @@ function addSkillEnergy(amount) {
 
 function fireHomingMissiles() {
 	const spread = Math.PI / 3;
-	for (let i = 0; i < 5; i++) {
-		const t = i / 4 - 0.5;
+	const count = 5 + player.bulletCount;
+	for (let i = 0; i < count; i++) {
+		const t = count > 1 ? i / (count - 1) - 0.5 : 0;
 		bullets.push({
 			x: player.x,
 			y: player.y - player.h / 2,
@@ -546,7 +547,7 @@ function update(timestamp) {
 		player.parryActive = false;
 	}
 	// 超时自动结束：最大维持时间受能量再生效率影响；格挡后冷却受攻击速度影响
-	const totalParryWindow = 500 * energyRegenEfficiency;
+	const totalParryWindow = 500 * playerEnergyRegenEfficiency;
 	if (player.parryActive && timestamp - player.parryStart > totalParryWindow) {
 		player.parryActive = false;
 		player.parryCooldownUntil = timestamp + 500 / playerAtkSpeed;
@@ -745,7 +746,7 @@ function update(timestamp) {
 			// K键格挡盾
 			if (player.parryActive) {
 				const parryElapsed = timestamp - player.parryStart;
-				const totalParryWindow = 500 * energyRegenEfficiency;
+				const totalParryWindow = 500 * playerEnergyRegenEfficiency;
 				const imperfectParryWindow = 300 / playerAtkSpeed;
 				const perfectParryWindow = totalParryWindow - imperfectParryWindow;
 				if (parryElapsed < perfectParryWindow) {
