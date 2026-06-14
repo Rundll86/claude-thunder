@@ -64,9 +64,9 @@ function spawnEnemy() {
 	const type = level < 2 ? 'normal' : types[Math.floor(Math.random() * (level < 4 ? 2 : 3))];
 	const lvlBonus = Math.floor((level - 1) / 2);
 	let cfg = {
-		normal: { w: 40, h: 40, hp: 1 + lvlBonus, speed: 0.6 + level * 0.08, color: '#e74c3c', score: 10, shootChance: 0.003 },
+		normal: { w: 40, h: 40, hp: 2 + lvlBonus * 2, speed: 0.6 + level * 0.08, color: '#e74c3c', score: 10, shootChance: 0.003 },
 		fast: { w: 30, h: 30, hp: 1 + lvlBonus, speed: 1.2 + level * 0.12, color: '#e67e22', score: 20, shootChance: 0.002 },
-		tank: { w: 52, h: 52, hp: 3 + lvlBonus * 2, speed: 0.4 + level * 0.04, color: '#8e44ad', score: 40, shootChance: 0.004 }
+		tank: { w: 52, h: 52, hp: 3 + lvlBonus * 2 * 2, speed: 0.4 + level * 0.04, color: '#8e44ad', score: 40, shootChance: 0.004 }
 	}[type];
 	enemies.push({
 		x: Math.random() * (canvas.width - cfg.w) + cfg.w / 2,
