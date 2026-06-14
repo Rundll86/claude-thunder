@@ -323,7 +323,7 @@ function drawStartMenu() {
 	ctx.font = 'bold 42px sans-serif';
 	ctx.textAlign = 'center';
 	ctx.textBaseline = 'middle';
-	ctx.fillText('Claude VS 雷电', cx, panelY + 72);
+	ctx.fillText('Claude VS Thunder', cx, panelY + 72);
 
 	ctx.shadowBlur = 0;
 	ctx.fillStyle = '#e6edf7';
