@@ -10,6 +10,9 @@ let enemyBullets = [];
 let enemies = [];
 let explosions = [];
 let powerups = [];
+let skillEnergy = 0;
+const skillEnergyMax = 100;
+let skillSpaceWasDown = false;
 let keys = {};
 let lastEnemySpawn = 0;
 let enemySpawnInterval = 1500;
@@ -60,15 +63,25 @@ document.addEventListener('keydown', e => { keys[e.key] = true; });
 document.addEventListener('keyup', e => { keys[e.key] = false; });
 
 function spawnEnemy() {
-	const types = ['normal', 'fast', 'tank', 'sentry'];
-	const type = level < 2 ? 'normal' : types[Math.floor(Math.random() * (level < 4 ? 2 : level < 6 ? 3 : 4))];
+	let spawnPool;
+	if (level < 2) {
+		spawnPool = ['normal'];
+	} else if (level < 4) {
+		spawnPool = ['normal', 'fast'];
+	} else if (level < 6) {
+		spawnPool = ['normal', 'fast', 'tank'];
+	} else {
+		// 降低哨兵生成权重：从原本约 25% 降到约 12.5%
+		spawnPool = ['normal', 'normal', 'fast', 'fast', 'tank', 'tank', 'tank', 'sentry'];
+	}
+	const type = spawnPool[Math.floor(Math.random() * spawnPool.length)];
 	const lvlBonus = Math.floor((level - 1) / 2);
 	const tankHp = 3 + lvlBonus * 2 * 2;
 	let cfg = {
 		normal: { w: 40, h: 40, hp: 1 + lvlBonus * 2, speed: 0.6 + level * 0.08, color: '#e74c3c', score: 10, shootChance: 0.003 },
 		fast: { w: 30, h: 30, hp: 1 + lvlBonus, speed: 1.2 + level * 0.12, color: '#e67e22', score: 20, shootChance: 0.002 },
 		tank: { w: 52, h: 52, hp: tankHp, speed: 0.4 + level * 0.04, color: '#8e44ad', score: 40, shootChance: 0.004 },
-		sentry: { w: 58, h: 58, hp: tankHp * 2, speed: 0, color: '#16a085', score: 80, shootChance: 0.008, shootInterval: 1250, aimedShot: true, guaranteedDrop: true }
+		sentry: { w: 58, h: 58, hp: tankHp * 1.5, speed: 0, color: '#16a085', score: 80, shootChance: 0.008, shootInterval: 1250, aimedShot: true, guaranteedDrop: true }
 	}[type];
 	enemies.push({
 		x: Math.random() * (canvas.width - cfg.w) + cfg.w / 2,
@@ -196,13 +209,76 @@ function drawEnemy(e) {
 
 function drawBullet(b, color) {
 	ctx.save();
-	ctx.shadowColor = color; ctx.shadowBlur = 8;
+	ctx.shadowColor = color;
+	ctx.shadowBlur = b._missile ? 16 : 8;
 	ctx.fillStyle = color;
 	ctx.translate(b.x, b.y);
 	ctx.rotate(b.angle || 0);
 	ctx.beginPath();
-	ctx.roundRect(-3, -10, 6, 20, 3);
+	if (b._missile) {
+		ctx.moveTo(0, -14);
+		ctx.lineTo(8, 8);
+		ctx.lineTo(0, 4);
+		ctx.lineTo(-8, 8);
+		ctx.closePath();
+	} else {
+		ctx.roundRect(-3, -10, 6, 20, 3);
+	}
 	ctx.fill();
+	ctx.restore();
+}
+
+function addSkillEnergy(amount) {
+	skillEnergy = Math.min(skillEnergyMax, skillEnergy + amount);
+}
+
+function fireHomingMissiles() {
+	const spread = Math.PI / 3;
+	for (let i = 0; i < 5; i++) {
+		const t = i / 4 - 0.5;
+		bullets.push({
+			x: player.x,
+			y: player.y - player.h / 2,
+			angle: t * spread,
+			_missile: true,
+			speed: 6.5,
+			turnRate: 0.14
+		});
+	}
+}
+
+function drawSkillIcon() {
+	const x = canvas.width / 2;
+	const y = canvas.height - 50;
+	const r = 24;
+	const ready = skillEnergy >= skillEnergyMax;
+	const progress = skillEnergy / skillEnergyMax;
+
+	ctx.save();
+	ctx.shadowColor = ready ? '#ffe066' : '#555';
+	ctx.shadowBlur = ready ? 22 : 4;
+	ctx.fillStyle = ready ? 'rgba(255, 224, 102, 0.22)' : 'rgba(0, 0, 0, 0.45)';
+	ctx.strokeStyle = ready ? '#ffe066' : '#666';
+	ctx.lineWidth = 3;
+	ctx.beginPath();
+	ctx.arc(x, y, r, 0, Math.PI * 2);
+	ctx.fill();
+	ctx.stroke();
+
+	ctx.beginPath();
+	ctx.strokeStyle = ready ? '#fff4a3' : '#4dabf7';
+	ctx.lineWidth = 4;
+	ctx.arc(x, y, r + 5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress);
+	ctx.stroke();
+
+	ctx.font = '22px sans-serif';
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	ctx.fillText('🚀', x, y - 1);
+
+	ctx.font = 'bold 10px sans-serif';
+	ctx.fillStyle = ready ? '#ffe066' : '#bbb';
+	ctx.fillText(ready ? 'SPACE' : `${skillEnergy}/${skillEnergyMax}`, x, y + 34);
 	ctx.restore();
 }
 
@@ -359,6 +435,15 @@ function update(timestamp) {
 		pew.play().catch(() => { });
 	}
 
+	// 空格技能：能量满 50 后发射 5 枚追踪导弹
+	const skillKeyDown = keys[' '] || keys['Space'] || keys['Spacebar'];
+	if (skillKeyDown && !skillSpaceWasDown && skillEnergy >= skillEnergyMax) {
+		skillEnergy -= skillEnergyMax;
+		fireHomingMissiles();
+		showNotification('🚀 追踪导弹发射！');
+	}
+	skillSpaceWasDown = skillKeyDown;
+
 	// 护盾计时
 	if (player.shieldActive && timestamp > player.shieldExpiry) {
 		player.shieldActive = false;
@@ -374,14 +459,14 @@ function update(timestamp) {
 	} else {
 		if (player.parryActive) {
 			// 格挡结束时开始计算冷却
-			player.parryCooldownUntil = timestamp + 1000;
+			player.parryCooldownUntil = timestamp + 500;
 		}
 		player.parryActive = false;
 	}
 	// 超时自动结束
 	if (player.parryActive && timestamp - player.parryStart > 500) {
 		player.parryActive = false;
-		player.parryCooldownUntil = timestamp + 1000;
+		player.parryCooldownUntil = timestamp + 500;
 	}
 
 	// 生成敌人
@@ -395,10 +480,29 @@ function update(timestamp) {
 	stars.forEach(s => { s.y += s.speed; if (s.y > canvas.height) s.y = 0; });
 
 	// 更新子弹
-	bullets = bullets.filter(b => b.y > -20 && b.x > -20 && b.x < canvas.width + 20);
+	bullets = bullets.filter(b => b.y > -30 && b.y < canvas.height + 30 && b.x > -30 && b.x < canvas.width + 30);
 	bullets.forEach(b => {
-		b.x += Math.sin(b.angle || 0) * playerBulletSpeed;
-		b.y -= Math.cos(b.angle || 0) * playerBulletSpeed;
+		if (b._missile) {
+			const target = enemies.reduce((nearest, e) => {
+				if (!nearest) return e;
+				const nd = (nearest.x - b.x) ** 2 + (nearest.y - b.y) ** 2;
+				const ed = (e.x - b.x) ** 2 + (e.y - b.y) ** 2;
+				return ed < nd ? e : nearest;
+			}, null);
+			if (target) {
+				const targetAngle = Math.atan2(target.x - b.x, -(target.y - b.y));
+				let diff = targetAngle - (b.angle || 0);
+				diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+				const turn = b.turnRate || 0.12;
+				b.angle = (b.angle || 0) + Math.max(-turn, Math.min(turn, diff));
+			}
+			const speed = b.speed || 6.5;
+			b.x += Math.sin(b.angle || 0) * speed;
+			b.y -= Math.cos(b.angle || 0) * speed;
+		} else {
+			b.x += Math.sin(b.angle || 0) * playerBulletSpeed;
+			b.y -= Math.cos(b.angle || 0) * playerBulletSpeed;
+		}
 	});
 
 	// 敌方子弹
@@ -444,28 +548,28 @@ function update(timestamp) {
 			sfxPowerup.play();
 			if (p.type === 'multishot') {
 				player.bulletCount = Math.min(player.bulletCount + 1, 20);
-				showNotification('⚔️ 多重射击 +1（共' + player.bulletCount + '发）');
+				showNotification('⚔️ 多重射击 +1');
 			} else if (p.type === 'ricochet') {
 				player.ricochetChance = Math.min(1, player.ricochetChance + 0.1);
-				showNotification('🔀 折射概率 +10%（共' + Math.round(player.ricochetChance * 100) + '%）');
+				showNotification('🔀 折射 +10%');
 			} else if (p.type === 'heal') {
 				lives += 1;
 				document.getElementById('lives').textContent = lives;
-				showNotification('❤️ 生命值 +1（共 ' + lives + '）');
+				showNotification('❤️ 生命值 +1');
 			} else if (p.type === 'atkspeed') {
-				playerAtkSpeed = Math.min(10, playerAtkSpeed + 0.1);
-				showNotification('🔥 攻击速度 ' + Math.round(playerAtkSpeed * 100) + '%（冷却 ' + Math.round(baseShootInterval / playerAtkSpeed) + 'ms）');
+				playerAtkSpeed = Math.min(10, playerAtkSpeed + 0.15);
+				showNotification('🔥 攻击速度 +15%');
 			} else if (p.type === 'bulletspeed') {
-				playerBulletSpeed = Math.min(playerBulletSpeed + 0.5, 35);
-				showNotification('🧨 子弹速度提升！速度 ' + playerBulletSpeed.toFixed(1));
+				playerBulletSpeed = Math.min(playerBulletSpeed + 0.25, 35);
+				showNotification('🧨 子弹速度 +1');
 			} else if (p.type === 'movespeed') {
-				player.speed = Math.min(player.speed + 0.15, 6);
-				showNotification('🚀 移动速度提升！速度 ' + player.speed.toFixed(2));
+				player.speed = Math.min(player.speed + 0.07, 6);
+				showNotification('🚀 移动速度 +1');
 			} else if (p.type === 'shield') {
 				player.shieldActive = true;
 				player.shieldHits = 1;
 				player.shieldExpiry = timestamp + 30000;
-				showNotification('🛡️ 护盾激活！可抵挡1次伤害');
+				showNotification('🛡️ 力墙护盾已激活！');
 			}
 			return false;
 		}
@@ -482,6 +586,7 @@ function update(timestamp) {
 			if (b._dead) return;
 			if (Math.abs(b.x - e.x) < e.w / 2 && Math.abs(b.y - e.y) < e.h / 2) {
 				b._dead = true;
+				addSkillEnergy(1);
 				e.hp--;
 				// 折射判定
 				if (Math.random() < player.ricochetChance) {
@@ -508,7 +613,8 @@ function update(timestamp) {
 					document.getElementById('level').textContent = level;
 					// 随机掉落道具，哨兵必定掉落
 					if (e.guaranteedDrop || Math.random() < 0.4) {
-						// 权重表
+						// 权重表：哨兵掉落 heal 的权重是其他单个道具的 2 倍
+						const healWeight = e.type === 'sentry' ? 20 : 1;
 						const weightedTypes = [
 							...Array(10).fill('multishot'),
 							...Array(10).fill('atkspeed'),
@@ -516,7 +622,7 @@ function update(timestamp) {
 							...Array(10).fill('bulletspeed'),
 							...Array(10).fill('movespeed'),
 							...Array(10).fill('ricochet'),
-							...Array(1).fill('heal'),
+							...Array(healWeight).fill('heal'),
 						];
 						powerups.push({ x: e.x, y: e.y, type: weightedTypes[Math.floor(Math.random() * weightedTypes.length)] });
 					}
@@ -548,6 +654,7 @@ function update(timestamp) {
 					sfxPerfectParry.currentTime = 0;
 					sfxPerfectParry.play();
 					createParrySparks(player.x, player.y, true);
+					addSkillEnergy(5);
 					player.parryActive = false;
 					player.parryCooldownUntil = timestamp + 1000;
 					// 完美格挡：免伤并向包含发射者在内的3个随机敌人发射反击子弹；敌人不足则随机散射补足
@@ -585,6 +692,7 @@ function update(timestamp) {
 					// 后0.3秒：25%概率免伤，但重置攻击冷却
 					if (Math.random() < 0.25) {
 						lastShot = timestamp;
+						addSkillEnergy(2);
 						showNotification('🛡️格挡！');
 						if (i < enemyBullets.length) enemyBullets.splice(i, 1);
 						else enemies.splice(i - enemyBullets.length, 1);
@@ -599,6 +707,7 @@ function update(timestamp) {
 			if (i < enemyBullets.length) enemyBullets.splice(i, 1);
 			else enemies.splice(i - enemyBullets.length, 1);
 			lives--;
+			addSkillEnergy(2);
 			document.getElementById('lives').textContent = lives;
 			if (lives <= 0) endGame();
 			else { player.x = canvas.width / 2; player.y = canvas.height - 80; }
@@ -635,7 +744,7 @@ function draw() {
 	enemies.forEach(e => drawEnemy(e));
 
 	// 子弹
-	bullets.forEach(b => drawBullet(b, '#d97706'));
+	bullets.forEach(b => drawBullet(b, b._missile ? '#ffe066' : '#d97706'));
 	enemyBullets.forEach(b => drawBullet(b, '#e74c3c'));
 
 	// 道具
@@ -682,6 +791,9 @@ function draw() {
 	// 格挡火花
 	updateAndDrawSparks();
 
+	// 技能图标
+	drawSkillIcon();
+
 	// 道具提示通知
 	const now = performance.now();
 	notifications.forEach((n, i) => {
@@ -726,6 +838,8 @@ function endGame() {
 function restartGame() {
 	score = 0; lives = 3; level = 1;
 	bullets = []; enemyBullets = []; enemies = []; explosions = []; powerups = [];
+	skillEnergy = 0;
+	skillSpaceWasDown = false;
 	playerAtkSpeed = 1.0;
 	playerBulletSpeed = 7;
 	player.speed = 1.5;
