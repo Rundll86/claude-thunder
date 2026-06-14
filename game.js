@@ -304,7 +304,7 @@ function drawStartMenu() {
 
 	const cx = canvas.width / 2;
 	const panelW = Math.min(520, canvas.width - 70);
-	const panelH = 360;
+	const panelH = 400;
 	const panelX = cx - panelW / 2;
 	const panelY = canvas.height / 2 - panelH / 2;
 
@@ -348,17 +348,17 @@ function drawStartMenu() {
 	ctx.strokeStyle = '#ffe066';
 	ctx.lineWidth = 2;
 	ctx.beginPath();
-	ctx.roundRect(cx - 110, panelY + 288, 220, 48, 24);
+	ctx.roundRect(cx - 110, panelY + 296, 220, 48, 24);
 	ctx.fill();
 	ctx.stroke();
 	ctx.fillStyle = '#ffe066';
 	ctx.font = 'bold 20px sans-serif';
-	ctx.fillText('开始游戏', cx, panelY + 312);
+	ctx.fillText('开始游戏', cx, panelY + 320);
 
 	ctx.shadowBlur = 0;
 	ctx.fillStyle = '#9fb3c8';
 	ctx.font = '13px sans-serif';
-	ctx.fillText('按 Enter / 空格 或点击开始', cx, panelY + 348);
+	ctx.fillText('按 Enter / 空格 或点击开始', cx, panelY + 360);
 	ctx.restore();
 }
 
