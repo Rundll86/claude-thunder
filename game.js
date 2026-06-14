@@ -545,10 +545,11 @@ function update(timestamp) {
 		}
 		player.parryActive = false;
 	}
-	// 超时自动结束
-	if (player.parryActive && timestamp - player.parryStart > 500) {
+	// 超时自动结束：最大维持时间受能量再生效率影响；格挡后冷却受攻击速度影响
+	const totalParryWindow = 500 * energyRegenEfficiency;
+	if (player.parryActive && timestamp - player.parryStart > totalParryWindow) {
 		player.parryActive = false;
-		player.parryCooldownUntil = timestamp + 500;
+		player.parryCooldownUntil = timestamp + 500 / playerAtkSpeed;
 	}
 
 	// 生成敌人：场上最多同时存在 7 个敌人
@@ -744,7 +745,10 @@ function update(timestamp) {
 			// K键格挡盾
 			if (player.parryActive) {
 				const parryElapsed = timestamp - player.parryStart;
-				if (parryElapsed < 200) {
+				const totalParryWindow = 500 * energyRegenEfficiency;
+				const imperfectParryWindow = 300 / playerAtkSpeed;
+				const perfectParryWindow = totalParryWindow - imperfectParryWindow;
+				if (parryElapsed < perfectParryWindow) {
 					// 完美格挡：喷火花并立即结束格挡状态
 					sfxPerfectParry.currentTime = 0;
 					sfxPerfectParry.play();
@@ -780,11 +784,11 @@ function update(timestamp) {
 					if (i < enemyBullets.length) enemyBullets.splice(i, 1);
 					else enemies.splice(i - enemyBullets.length, 1);
 					return;
-				} else {
+				} else if (parryElapsed <= totalParryWindow) {
 					// 不精准格挡音效
 					sfxUnexactParry.currentTime = 0;
 					sfxUnexactParry.play();
-					// 后0.3秒：25%概率免伤，但重置攻击冷却
+					// 不完美格挡窗口随攻击速度缩短：25%概率免伤，但重置攻击冷却
 					if (Math.random() < 0.25) {
 						lastShot = timestamp;
 						addSkillEnergy(3);
@@ -794,6 +798,8 @@ function update(timestamp) {
 						return;
 					}
 					// 未格挡，正常受伤
+				} else {
+					player.parryActive = false;
 				}
 			}
 			sfxHurt.currentTime = 0;
