@@ -60,17 +60,19 @@ document.addEventListener('keydown', e => { keys[e.key] = true; });
 document.addEventListener('keyup', e => { keys[e.key] = false; });
 
 function spawnEnemy() {
-	const types = ['normal', 'fast', 'tank'];
-	const type = level < 2 ? 'normal' : types[Math.floor(Math.random() * (level < 4 ? 2 : 3))];
+	const types = ['normal', 'fast', 'tank', 'sentry'];
+	const type = level < 2 ? 'normal' : types[Math.floor(Math.random() * (level < 4 ? 2 : level < 6 ? 3 : 4))];
 	const lvlBonus = Math.floor((level - 1) / 2);
+	const tankHp = 3 + lvlBonus * 2 * 2;
 	let cfg = {
-		normal: { w: 40, h: 40, hp: 2 + lvlBonus * 2, speed: 0.6 + level * 0.08, color: '#e74c3c', score: 10, shootChance: 0.003 },
+		normal: { w: 40, h: 40, hp: 1 + lvlBonus * 2, speed: 0.6 + level * 0.08, color: '#e74c3c', score: 10, shootChance: 0.003 },
 		fast: { w: 30, h: 30, hp: 1 + lvlBonus, speed: 1.2 + level * 0.12, color: '#e67e22', score: 20, shootChance: 0.002 },
-		tank: { w: 52, h: 52, hp: 3 + lvlBonus * 2 * 2, speed: 0.4 + level * 0.04, color: '#8e44ad', score: 40, shootChance: 0.004 }
+		tank: { w: 52, h: 52, hp: tankHp, speed: 0.4 + level * 0.04, color: '#8e44ad', score: 40, shootChance: 0.004 },
+		sentry: { w: 58, h: 58, hp: tankHp * 2, speed: 0, color: '#16a085', score: 80, shootChance: 0.008, shootInterval: 1250, aimedShot: true, guaranteedDrop: true }
 	}[type];
 	enemies.push({
 		x: Math.random() * (canvas.width - cfg.w) + cfg.w / 2,
-		y: -cfg.h,
+		y: type === 'sentry' ? cfg.h / 2 + 18 : -cfg.h,
 		...cfg, type,
 		maxHp: cfg.hp,
 		lastShot: -Infinity
@@ -400,15 +402,32 @@ function update(timestamp) {
 	});
 
 	// 敌方子弹
-	enemyBullets = enemyBullets.filter(b => b.y < canvas.height + 20);
-	enemyBullets.forEach(b => b.y += 3);
+	enemyBullets = enemyBullets.filter(b => b.y < canvas.height + 20 && b.y > -20 && b.x > -20 && b.x < canvas.width + 20);
+	enemyBullets.forEach(b => {
+		if (typeof b.vx === 'number' && typeof b.vy === 'number') {
+			b.x += b.vx;
+			b.y += b.vy;
+		} else {
+			b.y += 3;
+		}
+	});
 
 	// 更新敌人
 	enemies.forEach(e => {
 		e.y += e.speed;
-		// 敌人每1秒射击一次，出生即可射击
-		if (timestamp - e.lastShot >= 2500) {
-			enemyBullets.push({ x: e.x, y: e.y + e.h / 2, angle: 0, shooter: e });
+		// 敌人射击，哨兵攻速更快且会瞄准玩家
+		if (timestamp - e.lastShot >= (e.shootInterval || 2500)) {
+			if (e.aimedShot) {
+				const dx = player.x - e.x;
+				const dy = player.y - e.y;
+				const dist = Math.hypot(dx, dy) || 1;
+				const bulletSpeed = 3.2;
+				const vx = dx / dist * bulletSpeed;
+				const vy = dy / dist * bulletSpeed;
+				enemyBullets.push({ x: e.x, y: e.y + e.h / 2, vx, vy, angle: Math.atan2(vx, -vy), shooter: e });
+			} else {
+				enemyBullets.push({ x: e.x, y: e.y + e.h / 2, angle: 0, shooter: e });
+			}
 			e.lastShot = timestamp;
 		}
 	});
@@ -487,8 +506,8 @@ function update(timestamp) {
 					document.getElementById('score').textContent = score;
 					level = Math.floor(score / 200) + 1;
 					document.getElementById('level').textContent = level;
-					// 随机掉落道具
-					if (Math.random() < 0.4) {
+					// 随机掉落道具，哨兵必定掉落
+					if (e.guaranteedDrop || Math.random() < 0.4) {
 						// 权重表
 						const weightedTypes = [
 							...Array(10).fill('multishot'),
