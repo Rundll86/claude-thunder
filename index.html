@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+	<meta charset="UTF-8">
+	<title>雷电游戏</title>
+	<style>
+		* {
+			margin: 0;
+			padding: 0;
+			box-sizing: border-box;
+		}
+
+		body {
+			background: #000;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			height: 100vh;
+			overflow: hidden;
+		}
+
+		#gameCanvas {
+			border: 2px solid #333;
+			display: block;
+		}
+
+		#ui {
+			position: absolute;
+			top: 10px;
+			left: 50%;
+			transform: translateX(-50%);
+			color: #fff;
+			font-family: Arial, sans-serif;
+			font-size: 18px;
+			display: flex;
+			gap: 40px;
+			pointer-events: none;
+		}
+
+		#gameOver {
+			display: none;
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			color: #fff;
+			text-align: center;
+			font-family: Arial, sans-serif;
+		}
+
+		#gameOver h1 {
+			font-size: 48px;
+			color: #f00;
+			margin-bottom: 20px;
+		}
+
+		#gameOver button {
+			padding: 12px 30px;
+			font-size: 20px;
+			cursor: pointer;
+			background: #d97706;
+			border: none;
+			color: #fff;
+			border-radius: 8px;
+		}
+	</style>
+</head>
+
+<body>
+	<canvas id="gameCanvas" width="480" height="700"></canvas>
+	<div id="ui">
+		<span>分数: <span id="score">0</span></span>
+		<span>生命: <span id="lives">3</span></span>
+		<span>关卡: <span id="level">1</span></span>
+	</div>
+	<div id="gameOver">
+		<h1>游戏结束</h1>
+		<p style="font-size:24px;margin-bottom:20px">最终分数: <span id="finalScore">0</span></p>
+		<button onclick="restartGame()">重新开始</button>
+	</div>
+	<script src="game.js"></script>
+</body>
+
+</html>
