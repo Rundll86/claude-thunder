@@ -34,7 +34,9 @@ const player = {
 	shieldExpiry: 0,
 	parryActive: false,
 	parryStart: 0,
-	parryCooldownUntil: 0
+	parryCooldownUntil: 0,
+	tilt: 0,
+	targetTilt: 0
 };
 
 // 加载 Claude logo
@@ -75,27 +77,67 @@ function spawnEnemy() {
 	});
 }
 
+function drawThrusterFlame(x, y, direction, size, color) {
+	const time = performance.now() * 0.012;
+	const flicker = 0.75 + Math.sin(time + x * 0.05) * 0.18 + Math.random() * 0.16;
+	const flameLength = size * (1.1 + flicker * 0.9);
+	const flameWidth = size * (0.45 + flicker * 0.25);
+	const tipX = x + Math.cos(direction) * flameLength;
+	const tipY = y + Math.sin(direction) * flameLength;
+	const sideAngle = direction + Math.PI / 2;
+
+	ctx.save();
+	ctx.globalCompositeOperation = 'lighter';
+	ctx.shadowColor = '#ff8c00';
+	ctx.shadowBlur = 16;
+
+	// 外层推进火焰
+	ctx.beginPath();
+	ctx.moveTo(x + Math.cos(sideAngle) * flameWidth, y + Math.sin(sideAngle) * flameWidth);
+	ctx.lineTo(tipX, tipY);
+	ctx.lineTo(x - Math.cos(sideAngle) * flameWidth, y - Math.sin(sideAngle) * flameWidth);
+	ctx.closePath();
+	const outer = ctx.createRadialGradient(x, y, 0, tipX, tipY, flameLength);
+	outer.addColorStop(0, '#fff4a3');
+	outer.addColorStop(0.35, '#ffae00');
+	outer.addColorStop(1, 'rgba(255, 64, 0, 0)');
+	ctx.fillStyle = outer;
+	ctx.fill();
+
+	// 内层高亮焰心
+	ctx.beginPath();
+	ctx.moveTo(x + Math.cos(sideAngle) * flameWidth * 0.42, y + Math.sin(sideAngle) * flameWidth * 0.42);
+	ctx.lineTo(x + Math.cos(direction) * flameLength * 0.62, y + Math.sin(direction) * flameLength * 0.62);
+	ctx.lineTo(x - Math.cos(sideAngle) * flameWidth * 0.42, y - Math.sin(sideAngle) * flameWidth * 0.42);
+	ctx.closePath();
+	ctx.fillStyle = 'rgba(255, 255, 255, 0.78)';
+	ctx.fill();
+
+	ctx.restore();
+}
+
 function drawPlayer() {
+	drawThrusterFlame(player.x, player.y + player.h / 2 - 4, Math.PI / 2 + player.tilt * 0.25, player.w * 0.32, '#d97706');
+	ctx.save();
+	ctx.translate(player.x, player.y);
+	ctx.rotate(player.tilt);
 	if (player.imgLoaded) {
-		ctx.save();
 		// 发光效果
 		ctx.shadowColor = '#d97706';
 		ctx.shadowBlur = 18;
-		ctx.drawImage(player.img, player.x - player.w / 2, player.y - player.h / 2, player.w, player.h);
-		ctx.restore();
+		ctx.drawImage(player.img, -player.w / 2, -player.h / 2, player.w, player.h);
 	} else {
 		// 备用：橙色六边形
-		ctx.save();
 		ctx.shadowColor = '#d97706'; ctx.shadowBlur = 18;
 		ctx.fillStyle = '#d97706';
 		ctx.beginPath();
 		for (let i = 0; i < 6; i++) {
 			const a = (Math.PI / 3) * i - Math.PI / 6;
-			ctx.lineTo(player.x + Math.cos(a) * 24, player.y + Math.sin(a) * 24);
+			ctx.lineTo(Math.cos(a) * 24, Math.sin(a) * 24);
 		}
 		ctx.closePath(); ctx.fill();
-		ctx.restore();
 	}
+	ctx.restore();
 	// 格挡护盾视觉
 	if (player.parryActive) {
 		const now = performance.now();
@@ -126,6 +168,7 @@ function drawPlayer() {
 }
 
 function drawEnemy(e) {
+	drawThrusterFlame(e.x, e.y - e.h / 2 + 4, -Math.PI / 2, e.w * 0.28, e.color);
 	ctx.save();
 	ctx.shadowColor = e.color; ctx.shadowBlur = 10;
 	// 机身
@@ -282,10 +325,17 @@ function update(timestamp) {
 	if (!gameRunning) return;
 
 	// 移动玩家
-	if ((keys['ArrowLeft'] || keys['a']) && player.x - player.w / 2 > 0) player.x -= player.speed;
-	if ((keys['ArrowRight'] || keys['d']) && player.x + player.w / 2 < canvas.width) player.x += player.speed;
+	const movingLeft = keys['ArrowLeft'] || keys['a'];
+	const movingRight = keys['ArrowRight'] || keys['d'];
+	if (movingLeft && player.x - player.w / 2 > 0) player.x -= player.speed;
+	if (movingRight && player.x + player.w / 2 < canvas.width) player.x += player.speed;
 	if ((keys['ArrowUp'] || keys['w']) && player.y - player.h / 2 > 0) player.y -= player.speed;
 	if ((keys['ArrowDown'] || keys['s']) && player.y + player.h / 2 < canvas.height) player.y += player.speed;
+
+	// 左右移动时平滑倾斜，最大 20°
+	const maxTilt = 20 * Math.PI / 180;
+	player.targetTilt = movingLeft && !movingRight ? -maxTilt : movingRight && !movingLeft ? maxTilt : 0;
+	player.tilt += (player.targetTilt - player.tilt) * 0.16;
 
 	// 射击
 	if ((keys['j'] || keys['J']) && timestamp - lastShot > baseShootInterval / playerAtkSpeed) {
@@ -664,6 +714,7 @@ function restartGame() {
 	player.bulletCount = 1;
 	player.ricochetChance = 0;
 	player.shieldActive = false; player.shieldHits = 0; player.shieldExpiry = 0;
+	player.tilt = 0; player.targetTilt = 0;
 	document.getElementById('score').textContent = 0;
 	document.getElementById('lives').textContent = 3;
 	document.getElementById('level').textContent = 1;
