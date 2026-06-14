@@ -1,7 +1,8 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-let score = 0, lives = 3, level = 1, gameRunning = true;
+let score = 0, lives = 3, level = 1, gameRunning = false;
+let gameStarted = false;
 let notifications = [];
 let playerRicochetChance = 0;
 let stars = [];
@@ -60,8 +61,16 @@ for (let i = 0; i < 120; i++) {
 	});
 }
 
-document.addEventListener('keydown', e => { keys[e.key] = true; });
+document.addEventListener('keydown', e => {
+	keys[e.key] = true;
+	if (!gameStarted && (e.key === 'Enter' || e.key === ' ' || e.key === 'Space' || e.key === 'Spacebar')) {
+		beginGame();
+	}
+});
 document.addEventListener('keyup', e => { keys[e.key] = false; });
+canvas.addEventListener('click', () => {
+	if (!gameStarted) beginGame();
+});
 
 function spawnEnemy() {
 	let spawnPool;
@@ -284,6 +293,71 @@ function drawSkillIcon() {
 	ctx.font = 'bold 10px sans-serif';
 	ctx.fillStyle = ready ? '#ffe066' : '#bbb';
 	ctx.fillText(ready ? 'SPACE' : `${skillEnergy}/${skillEnergyMax}`, x, y + 34);
+	ctx.restore();
+}
+
+function drawStartMenu() {
+	ctx.save();
+	ctx.fillStyle = 'rgba(5, 10, 26, 0.72)';
+	ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+	const cx = canvas.width / 2;
+	const panelW = Math.min(520, canvas.width - 70);
+	const panelH = 360;
+	const panelX = cx - panelW / 2;
+	const panelY = canvas.height / 2 - panelH / 2;
+
+	ctx.shadowColor = '#d97706';
+	ctx.shadowBlur = 28;
+	ctx.fillStyle = 'rgba(12, 18, 42, 0.88)';
+	ctx.strokeStyle = '#d97706';
+	ctx.lineWidth = 2;
+	ctx.beginPath();
+	ctx.roundRect(panelX, panelY, panelW, panelH, 22);
+	ctx.fill();
+	ctx.stroke();
+
+	ctx.shadowBlur = 18;
+	ctx.fillStyle = '#ffe066';
+	ctx.font = 'bold 42px sans-serif';
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	ctx.fillText('Claude VS 雷电', cx, panelY + 72);
+
+	ctx.shadowBlur = 0;
+	ctx.fillStyle = '#e6edf7';
+	ctx.font = '18px sans-serif';
+	const instructions = [
+		'操作说明',
+		'WSAD：移动',
+		'J：射击',
+		'K：格挡',
+		'空格：释放技能，需要消耗能量',
+		'攻击命中敌人、触发完美格挡、受击时都会获得能量'
+	];
+	instructions.forEach((text, i) => {
+		ctx.font = i === 0 ? 'bold 22px sans-serif' : '17px sans-serif';
+		ctx.fillStyle = i === 0 ? '#4dabf7' : '#e6edf7';
+		ctx.fillText(text, cx, panelY + 132 + i * 30);
+	});
+
+	ctx.shadowColor = '#ffe066';
+	ctx.shadowBlur = 16;
+	ctx.fillStyle = 'rgba(255, 224, 102, 0.16)';
+	ctx.strokeStyle = '#ffe066';
+	ctx.lineWidth = 2;
+	ctx.beginPath();
+	ctx.roundRect(cx - 110, panelY + 288, 220, 48, 24);
+	ctx.fill();
+	ctx.stroke();
+	ctx.fillStyle = '#ffe066';
+	ctx.font = 'bold 20px sans-serif';
+	ctx.fillText('开始游戏', cx, panelY + 312);
+
+	ctx.shadowBlur = 0;
+	ctx.fillStyle = '#9fb3c8';
+	ctx.font = '13px sans-serif';
+	ctx.fillText('按 Enter / 空格 或点击开始', cx, panelY + 348);
 	ctx.restore();
 }
 
@@ -743,6 +817,11 @@ function draw() {
 		ctx.restore();
 	});
 
+	if (!gameStarted) {
+		drawStartMenu();
+		return;
+	}
+
 	// 敌人
 	enemies.forEach(e => drawEnemy(e));
 
@@ -824,7 +903,7 @@ function draw() {
 function gameLoop(timestamp) {
 	update(timestamp);
 	draw();
-	if (gameRunning) requestAnimationFrame(gameLoop);
+	requestAnimationFrame(gameLoop);
 }
 
 function endGame() {
@@ -838,11 +917,14 @@ function endGame() {
 	document.getElementById('gameOver').style.display = 'block';
 }
 
-function restartGame() {
+function resetGameState() {
 	score = 0; lives = 3; level = 1;
 	bullets = []; enemyBullets = []; enemies = []; explosions = []; powerups = [];
+	notifications = [];
 	skillEnergy = 0;
 	skillSpaceWasDown = false;
+	lastEnemySpawn = 0;
+	lastShot = 0;
 	playerAtkSpeed = 1.0;
 	playerBulletSpeed = 7;
 	player.speed = 1.5;
@@ -850,13 +932,22 @@ function restartGame() {
 	player.bulletCount = 1;
 	player.ricochetChance = 0;
 	player.shieldActive = false; player.shieldHits = 0; player.shieldExpiry = 0;
+	player.parryActive = false; player.parryStart = 0; player.parryCooldownUntil = 0;
 	player.tilt = 0; player.targetTilt = 0;
 	document.getElementById('score').textContent = 0;
 	document.getElementById('lives').textContent = 3;
 	document.getElementById('level').textContent = 1;
 	document.getElementById('gameOver').style.display = 'none';
+}
+
+function beginGame() {
+	gameStarted = true;
 	gameRunning = true;
-	requestAnimationFrame(gameLoop);
+	resetGameState();
+}
+
+function restartGame() {
+	beginGame();
 }
 
 // 资源预加载：等待音效与玩家图片加载完成后再隐藏加载页并开始游戏
