@@ -481,14 +481,30 @@ function update(timestamp) {
 					createParrySparks(player.x, player.y, true);
 					player.parryActive = false;
 					player.parryCooldownUntil = timestamp + 1000;
-					// 完美格挡：免伤并向发射者（敌机）预测位置发射子弹
+					// 完美格挡：免伤并向包含发射者在内的3个随机敌人发射反击子弹；敌人不足则随机散射补足
 					const shooter = (i < enemyBullets.length && obj.shooter) ? obj.shooter : obj;
-					const dist = Math.hypot(shooter.x - player.x, shooter.y - player.y);
-					const travelTime = dist / playerBulletSpeed;
-					const targetX = shooter.x;
-					const targetY = shooter.y + (shooter.speed || 0) * travelTime;
-					const angle = Math.atan2(targetX - player.x, -(targetY - player.y));
-					bullets.push({ x: player.x, y: player.y - player.h / 2, angle, _parryCounter: true });
+					const otherTargets = enemies.filter(e => e !== shooter);
+					for (let j = otherTargets.length - 1; j > 0; j--) {
+						const k = Math.floor(Math.random() * (j + 1));
+						[otherTargets[j], otherTargets[k]] = [otherTargets[k], otherTargets[j]];
+					}
+					const targets = enemies.includes(shooter)
+						? [shooter, ...otherTargets.slice(0, 2)]
+						: otherTargets.slice(0, 3);
+					for (let j = 0; j < 3; j++) {
+						let angle;
+						const target = targets[j];
+						if (target) {
+							const dist = Math.hypot(target.x - player.x, target.y - player.y);
+							const travelTime = dist / playerBulletSpeed;
+							const targetX = target.x;
+							const targetY = target.y + (target.speed || 0) * travelTime;
+							angle = Math.atan2(targetX - player.x, -(targetY - player.y));
+						} else {
+							angle = (Math.random() - 0.5) * (Math.PI / 2);
+						}
+						bullets.push({ x: player.x, y: player.y - player.h / 2, angle, _parryCounter: true });
+					}
 					showNotification('⚡️完美格挡！');
 					if (i < enemyBullets.length) enemyBullets.splice(i, 1);
 					else enemies.splice(i - enemyBullets.length, 1);
