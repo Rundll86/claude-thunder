@@ -22,6 +22,7 @@ let lastShot = 0;
 const baseShootInterval = 400;
 let playerAtkSpeed = 1.0;
 let playerBulletSpeed = 5;
+let playerEnergyRegenEfficiency = 1.0;
 
 // 玩家飞机（使用 Claude logo）
 const player = {
@@ -240,7 +241,7 @@ function drawBullet(b, color) {
 
 function addSkillEnergy(amount) {
 	const readyed = skillEnergy >= skillEnergyMax;
-	skillEnergy = Math.min(skillEnergyMax, skillEnergy + amount);
+	skillEnergy = Math.min(skillEnergyMax, skillEnergy + amount * playerEnergyRegenEfficiency);
 	if (!readyed && skillEnergy >= skillEnergyMax) {
 		showNotification("🌟弹射陨星 已就绪！");
 	}
@@ -649,6 +650,9 @@ function update(timestamp) {
 				player.shieldHits = 1;
 				player.shieldExpiry = timestamp + 30000;
 				showNotification('🛡️ 力墙护盾已激活！');
+			} else if (p.type === 'energyregen') {
+				playerEnergyRegenEfficiency = Math.min(3, playerEnergyRegenEfficiency + 0.05);
+				showNotification('🎈 能量再生效率 +5%');
 			}
 			return false;
 		}
@@ -703,6 +707,7 @@ function update(timestamp) {
 							...Array(10).fill('bulletspeed'),
 							...Array(10).fill('movespeed'),
 							...Array(10).fill('ricochet'),
+							...Array(10).fill('energyregen'),
 							...Array(healWeight).fill('heal'),
 						];
 						powerups.push({ x: e.x, y: e.y, type: weightedTypes[Math.floor(Math.random() * weightedTypes.length)] });
@@ -840,7 +845,8 @@ function draw() {
 			bulletspeed: { color: '#00ffcc', label: '🧨' },
 			movespeed: { color: '#a78bfa', label: '🚀' },
 			shield: { color: '#7fff7f', label: '🛡️' },
-			ricochet: { color: '#ff9ef7', label: '🔀' }
+			ricochet: { color: '#ff9ef7', label: '🔀' },
+			energyregen: { color: '#4dabf7', label: '🎈' }
 		}[p.type];
 		ctx.save();
 		ctx.shadowColor = cfg.color; ctx.shadowBlur = 14;
@@ -929,6 +935,7 @@ function resetGameState() {
 	lastShot = 0;
 	playerAtkSpeed = 1.0;
 	playerBulletSpeed = 7;
+	playerEnergyRegenEfficiency = 1.0;
 	player.speed = 1.5;
 	player.x = canvas.width / 2; player.y = canvas.height - 80;
 	player.bulletCount = 1;
