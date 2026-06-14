@@ -33,7 +33,8 @@ const player = {
 	shieldHits: 0,
 	shieldExpiry: 0,
 	parryActive: false,
-	parryStart: 0
+	parryStart: 0,
+	parryCooldownUntil: 0
 };
 
 // 加载 Claude logo
@@ -217,16 +218,21 @@ function update(timestamp) {
 
 	// K键格挡
 	if (keys['k'] || keys['K']) {
-		if (!player.parryActive) {
+		if (!player.parryActive && timestamp >= player.parryCooldownUntil) {
 			player.parryActive = true;
 			player.parryStart = timestamp;
 		}
 	} else {
+		if (player.parryActive) {
+			// 格挡结束时开始计算冷却
+			player.parryCooldownUntil = timestamp + 1000;
+		}
 		player.parryActive = false;
 	}
 	// 超时自动结束
 	if (player.parryActive && timestamp - player.parryStart > 500) {
 		player.parryActive = false;
+		player.parryCooldownUntil = timestamp + 1000;
 	}
 
 	// 生成敌人
