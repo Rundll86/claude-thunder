@@ -292,7 +292,7 @@ function drawSkillIcon() {
 
 	ctx.font = 'bold 10px sans-serif';
 	ctx.fillStyle = ready ? '#ffe066' : '#bbb';
-	ctx.fillText(ready ? 'SPACE' : `${skillEnergy}/${skillEnergyMax}`, x, y + 34);
+	ctx.fillText(ready ? 'SPACE' : `${Math.round(skillEnergy)}/${skillEnergyMax}`, x, y + 34);
 	ctx.restore();
 }
 
@@ -665,7 +665,9 @@ function update(timestamp) {
 			if (b._dead) return;
 			if (Math.abs(b.x - e.x) < e.w / 2 && Math.abs(b.y - e.y) < e.h / 2) {
 				b._dead = true;
-				addSkillEnergy(1);
+				if (Math.random() < 1 / player.bulletCount) {
+					addSkillEnergy(1);
+				}
 				e.hp--;
 				// 折射判定
 				if (Math.random() < player.ricochetChance) {
