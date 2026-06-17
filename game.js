@@ -14,6 +14,7 @@ let powerups = [];
 let skillEnergy = 0;
 const skillEnergyMax = 100;
 let skillSpaceWasDown = false;
+let gTimeScale = 1;
 let keys = {};
 let lastEnemySpawn = 0;
 let enemySpawnInterval = 1500;
@@ -448,10 +449,10 @@ function createParrySparks(x, y, perfect) {
 function updateAndDrawSparks() {
 	for (let i = sparks.length - 1; i >= 0; i--) {
 		const s = sparks[i];
-		s.x += s.vx;
-		s.y += s.vy;
-		s.vy += 0.08; // 重力
-		s.life -= s.decay;
+		s.x += s.vx * gTimeScale;
+		s.y += s.vy * gTimeScale;
+		s.vy += 0.08 * gTimeScale; // 重力
+		s.life -= s.decay * gTimeScale;
 		if (s.life <= 0) { sparks.splice(i, 1); continue; }
 		ctx.save();
 		ctx.globalAlpha = s.life;
@@ -466,8 +467,8 @@ function updateAndDrawSparks() {
 	// 冲击波：快速向外扩张的圆环，随生命衰减淡出
 	for (let i = shockwaves.length - 1; i >= 0; i--) {
 		const sw = shockwaves[i];
-		sw.r += (sw.maxR - sw.r) * 0.15;
-		sw.life -= 0.04;
+		sw.r += (sw.maxR - sw.r) * 0.15 * gTimeScale;
+		sw.life -= 0.04 * gTimeScale;
 		if (sw.life <= 0) { shockwaves.splice(i, 1); continue; }
 		ctx.save();
 		ctx.globalAlpha = sw.life;
@@ -488,15 +489,15 @@ function update(timestamp) {
 	// 移动玩家
 	const movingLeft = keys['ArrowLeft'] || keys['a'];
 	const movingRight = keys['ArrowRight'] || keys['d'];
-	if (movingLeft && player.x - player.w / 2 > 0) player.x -= player.speed;
-	if (movingRight && player.x + player.w / 2 < canvas.width) player.x += player.speed;
-	if ((keys['ArrowUp'] || keys['w']) && player.y - player.h / 2 > 0) player.y -= player.speed;
-	if ((keys['ArrowDown'] || keys['s']) && player.y + player.h / 2 < canvas.height) player.y += player.speed;
+	if (movingLeft && player.x - player.w / 2 > 0) player.x -= player.speed * gTimeScale;
+	if (movingRight && player.x + player.w / 2 < canvas.width) player.x += player.speed * gTimeScale;
+	if ((keys['ArrowUp'] || keys['w']) && player.y - player.h / 2 > 0) player.y -= player.speed * gTimeScale;
+	if ((keys['ArrowDown'] || keys['s']) && player.y + player.h / 2 < canvas.height) player.y += player.speed * gTimeScale;
 
 	// 左右移动时平滑倾斜，最大 20°
 	const maxTilt = 20 * Math.PI / 180;
 	player.targetTilt = movingLeft && !movingRight ? -maxTilt : movingRight && !movingLeft ? maxTilt : 0;
-	player.tilt += (player.targetTilt - player.tilt) * 0.16;
+	player.tilt += (player.targetTilt - player.tilt) * 0.16 * gTimeScale;
 
 	// 射击
 	if ((keys['j'] || keys['J']) && timestamp - lastShot > baseShootInterval / playerAtkSpeed) {
@@ -561,7 +562,7 @@ function update(timestamp) {
 	}
 
 	// 更新星星
-	stars.forEach(s => { s.y += s.speed; if (s.y > canvas.height) s.y = 0; });
+	stars.forEach(s => { s.y += s.speed * gTimeScale; if (s.y > canvas.height) s.y = 0; });
 
 	// 更新子弹
 	bullets = bullets.filter(b => b.y > -30 && b.y < canvas.height + 30 && b.x > -30 && b.x < canvas.width + 30);
@@ -578,14 +579,14 @@ function update(timestamp) {
 				let diff = targetAngle - (b.angle || 0);
 				diff = Math.atan2(Math.sin(diff), Math.cos(diff));
 				const turn = b.turnRate || 0.12;
-				b.angle = (b.angle || 0) + Math.max(-turn, Math.min(turn, diff));
+				b.angle = (b.angle || 0) + Math.max(-turn, Math.min(turn, diff)) * gTimeScale;
 			}
 			const speed = b.speed || 6.5;
-			b.x += Math.sin(b.angle || 0) * speed;
-			b.y -= Math.cos(b.angle || 0) * speed;
+			b.x += Math.sin(b.angle || 0) * speed * gTimeScale;
+			b.y -= Math.cos(b.angle || 0) * speed * gTimeScale;
 		} else {
-			b.x += Math.sin(b.angle || 0) * playerBulletSpeed;
-			b.y -= Math.cos(b.angle || 0) * playerBulletSpeed;
+			b.x += Math.sin(b.angle || 0) * playerBulletSpeed * gTimeScale;
+			b.y -= Math.cos(b.angle || 0) * playerBulletSpeed * gTimeScale;
 		}
 	});
 
@@ -593,16 +594,16 @@ function update(timestamp) {
 	enemyBullets = enemyBullets.filter(b => b.y < canvas.height + 20 && b.y > -20 && b.x > -20 && b.x < canvas.width + 20);
 	enemyBullets.forEach(b => {
 		if (typeof b.vx === 'number' && typeof b.vy === 'number') {
-			b.x += b.vx;
-			b.y += b.vy;
+			b.x += b.vx * gTimeScale;
+			b.y += b.vy * gTimeScale;
 		} else {
-			b.y += 3;
+			b.y += 3 * gTimeScale;
 		}
 	});
 
 	// 更新敌人
 	enemies.forEach(e => {
-		e.y += e.speed;
+		e.y += e.speed * gTimeScale;
 		// 敌人射击，哨兵攻速更快且会瞄准玩家
 		if (timestamp - e.lastShot >= (e.shootInterval || 2500)) {
 			if (e.aimedShot) {
@@ -622,7 +623,7 @@ function update(timestamp) {
 	enemies = enemies.filter(e => e.y < canvas.height + 60);
 
 	// 生成道具
-	powerups.forEach(p => p.y += 1.5);
+	powerups.forEach(p => p.y += 1.5 * gTimeScale);
 	powerups = powerups.filter(p => p.y < canvas.height + 40);
 
 	// 玩家拾取道具
@@ -817,7 +818,7 @@ function update(timestamp) {
 		}
 	});
 	// 更新爆炸
-	explosions.forEach(ex => ex.frame++);
+	explosions.forEach(ex => ex.frame += gTimeScale);
 	explosions = explosions.filter(ex => ex.frame < ex.maxFrame);
 }
 function showNotification(text) {
@@ -925,7 +926,11 @@ function draw() {
 	});
 }
 
+let lastTimestamp = 0;
 function gameLoop(timestamp) {
+	const dt = lastTimestamp ? Math.min(timestamp - lastTimestamp, 50) : 16.667;
+	lastTimestamp = timestamp;
+	gTimeScale = dt / 16.667;
 	update(timestamp);
 	draw();
 	requestAnimationFrame(gameLoop);
