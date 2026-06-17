@@ -930,7 +930,7 @@ let lastTimestamp = 0;
 function gameLoop(timestamp) {
 	const dt = lastTimestamp ? Math.min(timestamp - lastTimestamp, 50) : 16.667;
 	lastTimestamp = timestamp;
-	gTimeScale = dt / 16.667;
+	gTimeScale = (dt / 16.667) * 2;
 	update(timestamp);
 	draw();
 	requestAnimationFrame(gameLoop);
