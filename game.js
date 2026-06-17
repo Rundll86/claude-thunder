@@ -16,6 +16,9 @@ const skillEnergyMax = 100;
 let skillSpaceWasDown = false;
 let gTimeScale = 1;
 let keys = {};
+let inBossFight = false;
+let bossFightLevel = 0;
+let highestBossLevelDefeated = 0;
 let lastEnemySpawn = 0;
 let enemySpawnInterval = 1500;
 const maxEnemies = 7;
@@ -74,6 +77,32 @@ document.addEventListener('keyup', e => { keys[e.key] = false; });
 canvas.addEventListener('click', () => {
 	if (!gameStarted) beginGame();
 });
+
+function spawnBoss(lvl) {
+	const now = performance.now();
+	const hp = 80 + (lvl - 5) * 40;
+	enemies.push({
+		x: canvas.width / 2,
+		y: 100,
+		w: 90,
+		h: 90,
+		hp: hp,
+		maxHp: hp,
+		speed: 0.3,
+		color: '#ff0040',
+		score: 500,
+		shootChance: 0,
+		isBoss: true,
+		moveDir: 1,
+		lastShot1: now,
+		lastShot2: now,
+		burstCount: 0,
+		burstTimer: 0
+	});
+	inBossFight = true;
+	bossFightLevel = lvl;
+	showNotification('⚠️ BOSS 出现！');
+}
 
 function spawnEnemy() {
 	let spawnPool;
@@ -195,7 +224,36 @@ function drawPlayer() {
 	}
 }
 
+function drawBoss(e) {
+	drawThrusterFlame(e.x, e.y - e.h / 2 + 4, -Math.PI / 2, e.w * 0.28, e.color);
+	ctx.save();
+	ctx.shadowColor = e.color; ctx.shadowBlur = 24;
+	ctx.fillStyle = e.color;
+	ctx.beginPath();
+	ctx.moveTo(e.x, e.y + e.h / 2);
+	ctx.lineTo(e.x - e.w / 2, e.y - e.h / 2);
+	ctx.lineTo(e.x, e.y - e.h / 4);
+	ctx.lineTo(e.x + e.w / 2, e.y - e.h / 2);
+	ctx.closePath(); ctx.fill();
+	ctx.fillStyle = '#fff';
+	ctx.beginPath();
+	ctx.arc(e.x, e.y, e.w * 0.15, 0, Math.PI * 2);
+	ctx.fill();
+	const bw = e.w * 1.2, bh = 8;
+	const ratio = Math.max(0, e.hp / e.maxHp);
+	const barColor = ratio > 0.5 ? '#2ecc71' : ratio > 0.25 ? '#f39c12' : '#e74c3c';
+	ctx.fillStyle = '#333';
+	ctx.fillRect(e.x - bw / 2, e.y - e.h / 2 - 16, bw, bh);
+	ctx.fillStyle = barColor;
+	ctx.fillRect(e.x - bw / 2, e.y - e.h / 2 - 16, bw * ratio, bh);
+	ctx.strokeStyle = '#fff';
+	ctx.lineWidth = 1;
+	ctx.strokeRect(e.x - bw / 2, e.y - e.h / 2 - 16, bw, bh);
+	ctx.restore();
+}
+
 function drawEnemy(e) {
+	if (e.isBoss) { drawBoss(e); return; }
 	drawThrusterFlame(e.x, e.y - e.h / 2 + 4, -Math.PI / 2, e.w * 0.28, e.color);
 	ctx.save();
 	ctx.shadowColor = e.color; ctx.shadowBlur = 10;
@@ -486,6 +544,23 @@ function updateAndDrawSparks() {
 function update(timestamp) {
 	if (!gameRunning) return;
 
+	// 同步关卡并检查Boss战
+	if (!inBossFight) {
+		const computedLevel = Math.floor(score / 200) + 1;
+		if (computedLevel !== level) {
+			level = computedLevel;
+			document.getElementById('level').textContent = level;
+			const nextBoss = Math.ceil(level / 5) * 5;
+			const wavesLeft = nextBoss - level;
+			if (wavesLeft > 0) {
+				showNotification(`🎯 距离 Boss 还有 ${wavesLeft} 关`);
+			}
+		}
+		if (level % 1 === 0 && level > highestBossLevelDefeated) {
+			spawnBoss(level);
+		}
+	}
+
 	// 移动玩家
 	const movingLeft = keys['ArrowLeft'] || keys['a'];
 	const movingRight = keys['ArrowRight'] || keys['d'];
@@ -495,7 +570,7 @@ function update(timestamp) {
 	if ((keys['ArrowDown'] || keys['s']) && player.y + player.h / 2 < canvas.height) player.y += player.speed * gTimeScale;
 
 	// 左右移动时平滑倾斜，最大 20°
-	const maxTilt = 20 * Math.PI / 180;
+	const maxTilt = 30 * Math.PI / 180;
 	player.targetTilt = movingLeft && !movingRight ? -maxTilt : movingRight && !movingLeft ? maxTilt : 0;
 	player.tilt += (player.targetTilt - player.tilt) * 0.16 * gTimeScale;
 
@@ -556,7 +631,7 @@ function update(timestamp) {
 
 	// 生成敌人：场上最多同时存在 7 个敌人
 	const interval = Math.max(500, enemySpawnInterval - (level - 1) * 150);
-	if (timestamp - lastEnemySpawn > interval && enemies.length < maxEnemies) {
+	if (!inBossFight && timestamp - lastEnemySpawn > interval && enemies.length < maxEnemies) {
 		spawnEnemy();
 		lastEnemySpawn = timestamp;
 	}
@@ -603,24 +678,51 @@ function update(timestamp) {
 
 	// 更新敌人
 	enemies.forEach(e => {
-		e.y += e.speed * gTimeScale;
-		// 敌人射击，哨兵攻速更快且会瞄准玩家
-		if (timestamp - e.lastShot >= (e.shootInterval || 2500)) {
-			if (e.aimedShot) {
+		if (e.isBoss) {
+			e.x += e.speed * e.moveDir * gTimeScale;
+			if (e.x - e.w / 2 < 0) { e.x = e.w / 2; e.moveDir = 1; }
+			if (e.x + e.w / 2 > canvas.width) { e.x = canvas.width - e.w / 2; e.moveDir = -1; }
+			// 招式1：每隔3秒向玩家连续发射3颗子弹，间隔50ms
+			if (timestamp - e.lastShot1 > 3000 && e.burstCount === 0) {
+				e.burstCount = 3;
+				e.burstTimer = timestamp;
+			}
+			if (e.burstCount > 0 && timestamp - e.burstTimer >= (3 - e.burstCount) * 50) {
 				const dx = player.x - e.x;
 				const dy = player.y - e.y;
 				const dist = Math.hypot(dx, dy) || 1;
-				const bulletSpeed = 3.2;
-				const vx = dx / dist * bulletSpeed;
-				const vy = dy / dist * bulletSpeed;
-				enemyBullets.push({ x: e.x, y: e.y + e.h / 2, vx, vy, angle: Math.atan2(vx, -vy), shooter: e });
-			} else {
-				enemyBullets.push({ x: e.x, y: e.y + e.h / 2, angle: 0, shooter: e });
+				const bs = 4;
+				enemyBullets.push({ x: e.x, y: e.y + e.h / 2, vx: dx / dist * bs, vy: dy / dist * bs, angle: Math.atan2(dx, -dy), shooter: e });
+				e.burstCount--;
+				if (e.burstCount === 0) e.lastShot1 = timestamp;
 			}
-			e.lastShot = timestamp;
+			// 招式2：每隔6秒向周围一圈发射10个子弹
+			if (timestamp - e.lastShot2 > 6000) {
+				for (let i = 0; i < 10; i++) {
+					const angle = (Math.PI * 2 / 10) * i;
+					enemyBullets.push({ x: e.x, y: e.y + e.h / 2, vx: Math.cos(angle) * 3, vy: Math.sin(angle) * 3, angle, shooter: e });
+				}
+				e.lastShot2 = timestamp;
+			}
+		} else {
+			e.y += e.speed * gTimeScale;
+			if (timestamp - e.lastShot >= (e.shootInterval || 2500)) {
+				if (e.aimedShot) {
+					const dx = player.x - e.x;
+					const dy = player.y - e.y;
+					const dist = Math.hypot(dx, dy) || 1;
+					const bulletSpeed = 3.2;
+					const vx = dx / dist * bulletSpeed;
+					const vy = dy / dist * bulletSpeed;
+					enemyBullets.push({ x: e.x, y: e.y + e.h / 2, vx, vy, angle: Math.atan2(vx, -vy), shooter: e });
+				} else {
+					enemyBullets.push({ x: e.x, y: e.y + e.h / 2, angle: 0, shooter: e });
+				}
+				e.lastShot = timestamp;
+			}
 		}
 	});
-	enemies = enemies.filter(e => e.y < canvas.height + 60);
+	enemies = enemies.filter(e => e.isBoss || e.y < canvas.height + 60);
 
 	// 生成道具
 	powerups.forEach(p => p.y += 1.5 * gTimeScale);
@@ -702,27 +804,44 @@ function update(timestamp) {
 					}
 				}
 				if (e.hp <= 0) {
-					createExplosion(e.x, e.y, e.type === 'tank');
+					createExplosion(e.x, e.y, e.type === 'tank' || e.isBoss);
 					score += e.score;
 					document.getElementById('score').textContent = score;
-					level = Math.floor(score / 200) + 1;
-					document.getElementById('level').textContent = level;
-					// 随机掉落道具，哨兵必定掉落
-					if (e.guaranteedDrop || Math.random() < 0.4) {
-						// 权重表：哨兵掉落 heal 的权重是其他单个道具的 2 倍
-						const healWeight = e.type === 'sentry' ? 20 : 1;
-						const weightedTypes = [
-							...Array(10).fill('multishot'),
-							...Array(10).fill('atkspeed'),
-							...Array(10).fill('shield'),
-							...Array(10).fill('bulletspeed'),
-							...Array(10).fill('movespeed'),
-							...Array(10).fill('ricochet'),
-							...Array(10).fill('energyregen'),
-							...Array(10).fill('pierce'),
-							...Array(healWeight).fill('heal'),
-						];
-						powerups.push({ x: e.x, y: e.y, type: weightedTypes[Math.floor(Math.random() * weightedTypes.length)] });
+					if (e.isBoss) {
+						inBossFight = false;
+						highestBossLevelDefeated = bossFightLevel;
+						level = Math.floor(score / 200) + 1;
+						document.getElementById('level').textContent = level;
+						const dropTypes = ['multishot', 'atkspeed', 'shield', 'bulletspeed', 'movespeed', 'ricochet', 'energyregen', 'pierce'];
+						dropTypes.forEach((type, i) => {
+							powerups.push({ x: e.x + (i - 4) * 25, y: e.y, type });
+						});
+						for (let i = 0; i < 3; i++) {
+							powerups.push({ x: e.x + (Math.random() - 0.5) * 60, y: e.y + (Math.random() - 0.5) * 30, type: 'heal' });
+						}
+						showNotification('🏆 BOSS 击破！');
+					} else {
+						if (!inBossFight) {
+							level = Math.floor(score / 200) + 1;
+							document.getElementById('level').textContent = level;
+						}
+						// 随机掉落道具，哨兵必定掉落
+						if (e.guaranteedDrop || Math.random() < 0.4) {
+							// 权重表：哨兵掉落 heal 的权重是其他单个道具的 2 倍
+							const healWeight = e.type === 'sentry' ? 20 : 1;
+							const weightedTypes = [
+								...Array(10).fill('multishot'),
+								...Array(10).fill('atkspeed'),
+								...Array(10).fill('shield'),
+								...Array(10).fill('bulletspeed'),
+								...Array(10).fill('movespeed'),
+								...Array(10).fill('ricochet'),
+								...Array(10).fill('energyregen'),
+								...Array(10).fill('pierce'),
+								...Array(healWeight).fill('heal'),
+							];
+							powerups.push({ x: e.x, y: e.y, type: weightedTypes[Math.floor(Math.random() * weightedTypes.length)] });
+						}
 					}
 					enemies.splice(ei, 1);
 				}
@@ -953,6 +1072,9 @@ function resetGameState() {
 	notifications = [];
 	skillEnergy = 0;
 	skillSpaceWasDown = false;
+	inBossFight = false;
+	bossFightLevel = 0;
+	highestBossLevelDefeated = 0;
 	lastEnemySpawn = 0;
 	lastShot = 0;
 	playerAtkSpeed = 1.0;
