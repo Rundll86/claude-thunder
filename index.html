@@ -18,6 +18,7 @@
 			align-items: center;
 			height: 100vh;
 			overflow: hidden;
+			gap: 20px;
 		}
 
 		#gameCanvas {
@@ -25,17 +26,106 @@
 			display: block;
 		}
 
-		#ui {
-			position: absolute;
-			top: 10px;
-			left: 50%;
-			transform: translateX(-50%);
+		#stats {
+			width: 140px;
+			background: rgba(8, 14, 32, 0.9);
+			border: 2px solid #d97706;
+			border-radius: 10px;
+			padding: 15px;
 			color: #fff;
 			font-family: Arial, sans-serif;
-			font-size: 18px;
+			box-shadow: 0 0 20px rgba(217, 119, 6, 0.3);
+		}
+
+		#stats h3 {
+			text-align: center;
+			color: #ffe066;
+			font-size: 14px;
+			margin-bottom: 12px;
+			border-bottom: 1px solid #d97706;
+			padding-bottom: 8px;
+		}
+
+		.stat-row {
 			display: flex;
-			gap: 40px;
-			pointer-events: none;
+			justify-content: space-between;
+			margin-bottom: 8px;
+			font-size: 12px;
+		}
+
+		.stat-label {
+			color: #8899aa;
+		}
+
+		.stat-value {
+			color: #fff;
+			font-weight: bold;
+		}
+
+		#stats .status-bar {
+			margin-top: 12px;
+			padding-top: 10px;
+			border-top: 1px solid rgba(217, 119, 6, 0.3);
+		}
+
+		#stats .status-item {
+			margin-bottom: 8px;
+		}
+
+		#stats .status-label {
+			font-size: 11px;
+			color: #8899aa;
+			margin-bottom: 3px;
+		}
+
+		#stats .status-label.active {
+			color: #fff;
+		}
+
+		#stats .progress-container {
+			height: 14px;
+			background: rgba(255, 255, 255, 0.1);
+			border-radius: 3px;
+			overflow: hidden;
+			position: relative;
+		}
+
+		#stats .progress-bar {
+			height: 100%;
+			border-radius: 3px;
+			transition: width 0.1s linear;
+		}
+
+		#stats .progress-bar.shield {
+			background: linear-gradient(90deg, #2d7a2d, #7fff7f);
+		}
+
+		#stats .progress-bar.parry {
+			background: linear-gradient(90deg, #1a6b7a, #00e5ff);
+		}
+
+		#stats .progress-bar.parry-perfect {
+			background: linear-gradient(90deg, #b8860b, #ffd700);
+		}
+
+		#stats .progress-bar.cooldown {
+			background: rgba(255, 255, 255, 0.2);
+		}
+
+		#stats .progress-bar.inactive {
+			background: rgba(255, 255, 255, 0.1);
+			width: 100% !important;
+		}
+
+		#stats .status-text {
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			font-size: 9px;
+			color: #fff;
+			text-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
+			white-space: nowrap;
 		}
 
 		#gameOver {
@@ -98,6 +188,7 @@
 			}
 		}
 	</style>
+	<link rel="shortcut icon" href="assets\textures\claude.png" type="image/x-icon">
 </head>
 
 <body>
@@ -106,10 +197,64 @@
 		<p>正在加载…</p>
 	</div>
 	<canvas id="gameCanvas" width="480" height="700"></canvas>
-	<div id="ui">
-		<span>分数: <span id="score">0</span></span>
-		<span>生命: <span id="lives">3</span></span>
-		<span>关卡: <span id="level">1</span></span>
+	<div id="stats">
+		<h3>属性面板</h3>
+		<div class="stat-row">
+			<span class="stat-label">分数</span>
+			<span class="stat-value" id="statScore">0</span>
+		</div>
+		<div class="stat-row">
+			<span class="stat-label">生命</span>
+			<span class="stat-value" id="statLives">3</span>
+		</div>
+		<div class="stat-row">
+			<span class="stat-label">关卡</span>
+			<span class="stat-value" id="statLevel">1</span>
+		</div>
+		<div class="stat-row">
+			<span class="stat-label">能量</span>
+			<span class="stat-value" id="statEnergy">0/100</span>
+		</div>
+		<div class="stat-row">
+			<span class="stat-label">多重射击</span>
+			<span class="stat-value" id="statBulletCount">1</span>
+		</div>
+		<div class="stat-row">
+			<span class="stat-label">攻击速度</span>
+			<span class="stat-value" id="statAtkSpeed">1.00</span>
+		</div>
+		<div class="stat-row">
+			<span class="stat-label">子弹速度</span>
+			<span class="stat-value" id="statBulletSpeed">5.0</span>
+		</div>
+		<div class="stat-row">
+			<span class="stat-label">能量再生效率</span>
+			<span class="stat-value" id="statEnergyRegen">1.00</span>
+		</div>
+		<div class="stat-row">
+			<span class="stat-label">穿透</span>
+			<span class="stat-value" id="statPierce">0%</span>
+		</div>
+		<div class="stat-row">
+			<span class="stat-label">折射</span>
+			<span class="stat-value" id="statRicochet">0%</span>
+		</div>
+		<div class="status-bar">
+			<div class="status-item">
+				<div class="status-label" id="shieldLabel">护盾未激活</div>
+				<div class="progress-container">
+					<div class="progress-bar inactive" id="shieldBar"></div>
+					<span class="status-text" id="shieldText">--</span>
+				</div>
+			</div>
+			<div class="status-item">
+				<div class="status-label" id="parryLabel">格挡未激活</div>
+				<div class="progress-container">
+					<div class="progress-bar inactive" id="parryBar"></div>
+					<span class="status-text" id="parryText">--</span>
+				</div>
+			</div>
+		</div>
 	</div>
 	<div id="gameOver">
 		<h1>游戏结束</h1>

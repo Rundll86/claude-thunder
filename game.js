@@ -118,7 +118,6 @@ function spawnBoss(lvl) {
 
 function startLevel(lvl) {
 	level = lvl;
-	document.getElementById('level').textContent = level;
 	const nextBoss = Math.ceil(level / 5) * 5;
 	const wavesLeft = nextBoss - level;
 	if (wavesLeft > 0) {
@@ -391,6 +390,74 @@ function drawSkillIcon() {
 	ctx.fillStyle = ready ? '#ffe066' : '#bbb';
 	ctx.fillText(ready ? 'SPACE' : `${Math.round(skillEnergy)}/${skillEnergyMax}`, x, y + 34);
 	ctx.restore();
+}
+
+function updateStatsPanel() {
+	document.getElementById('statScore').textContent = score;
+	document.getElementById('statLives').textContent = lives;
+	document.getElementById('statLevel').textContent = level;
+	document.getElementById('statEnergy').textContent = `${Math.round(skillEnergy)}/${skillEnergyMax}`;
+	document.getElementById('statBulletCount').textContent = player.bulletCount;
+	document.getElementById('statAtkSpeed').textContent = playerAtkSpeed.toFixed(2);
+	document.getElementById('statBulletSpeed').textContent = playerBulletSpeed.toFixed(1);
+	document.getElementById('statEnergyRegen').textContent = playerEnergyRegenEfficiency.toFixed(2);
+	document.getElementById('statPierce').textContent = `${(playerPierceChance * 100).toFixed(0)}%`;
+	document.getElementById('statRicochet').textContent = `${(playerRicochetChance * 100).toFixed(0)}%`;
+
+	// 护盾状态
+	const now = performance.now();
+	const shieldLabel = document.getElementById('shieldLabel');
+	const shieldBar = document.getElementById('shieldBar');
+	const shieldText = document.getElementById('shieldText');
+
+	if (player.shieldActive) {
+		const remaining = Math.max(0, (player.shieldExpiry - now) / 1000);
+		const totalDuration = 30;
+		const percent = (remaining / totalDuration) * 100;
+		shieldLabel.textContent = `🛡️ 护盾激活 (${player.shieldHits}次)`;
+		shieldLabel.classList.add('active');
+		shieldBar.style.width = `${percent}%`;
+		shieldBar.className = 'progress-bar shield';
+		shieldText.textContent = `${remaining.toFixed(1)}s`;
+	} else {
+		shieldLabel.textContent = '护盾未激活';
+		shieldLabel.classList.remove('active');
+		shieldBar.className = 'progress-bar inactive';
+		shieldText.textContent = '--';
+	}
+
+	// 格挡状态
+	const parryLabel = document.getElementById('parryLabel');
+	const parryBar = document.getElementById('parryBar');
+	const parryText = document.getElementById('parryText');
+
+	if (player.parryActive) {
+		const totalWindow = 3000 * playerEnergyRegenEfficiency;
+		const elapsed = now - player.parryStart;
+		const remaining = Math.max(0, (totalWindow - elapsed) / 1000);
+		const percent = Math.max(0, (remaining / (totalWindow / 1000)) * 100);
+		const isPerfect = elapsed < 1000;
+		parryLabel.textContent = isPerfect ? '⭐ 完美格挡' : '⚡ 格挡中';
+		parryLabel.classList.add('active');
+		parryBar.style.width = `${percent}%`;
+		parryBar.className = isPerfect ? 'progress-bar parry-perfect' : 'progress-bar parry';
+		parryText.textContent = `${remaining.toFixed(1)}s`;
+	} else if (now < player.parryCooldownUntil) {
+		// 冷却中
+		const cooldownRemaining = (player.parryCooldownUntil - now) / 1000;
+		const cooldownTotal = 0.5 / playerAtkSpeed;
+		const percent = (1 - cooldownRemaining / cooldownTotal) * 100;
+		parryLabel.textContent = '格挡冷却中';
+		parryLabel.classList.remove('active');
+		parryBar.style.width = `${percent}%`;
+		parryBar.className = 'progress-bar cooldown';
+		parryText.textContent = `${cooldownRemaining.toFixed(1)}s`;
+	} else {
+		parryLabel.textContent = '格挡就绪';
+		parryLabel.classList.remove('active');
+		parryBar.className = 'progress-bar inactive';
+		parryText.textContent = '按K';
+	}
 }
 
 function drawStartMenu() {
@@ -813,7 +880,6 @@ function update(timestamp) {
 				showNotification('🔀 折射 +10%');
 			} else if (p.type === 'heal') {
 				lives += 1;
-				document.getElementById('lives').textContent = lives;
 				showNotification('❤️ 生命值 +1');
 			} else if (p.type === 'atkspeed') {
 				playerAtkSpeed = Math.min(10, playerAtkSpeed + 0.15);
@@ -878,7 +944,6 @@ function update(timestamp) {
 				if (e.hp <= 0) {
 					createExplosion(e.x, e.y, e.type === 'tank' || e.isBoss);
 					score += e.score;
-					document.getElementById('score').textContent = score;
 					if (e.isBoss) {
 						inBossFight = false;
 						highestBossLevelDefeated = bossFightLevel;
@@ -931,7 +996,6 @@ function update(timestamp) {
 				lives--;
 				addSkillEnergy(2);
 				showNotification(`💔受损，剩余${lives}点生命值！`);
-				document.getElementById('lives').textContent = lives;
 				if (lives <= 0) endGame();
 				else { player.x = canvas.width / 2; player.y = canvas.height - 80; }
 				return;
@@ -1049,7 +1113,6 @@ function update(timestamp) {
 			lives--;
 			addSkillEnergy(2);
 			showNotification(`💔受损，剩余${lives}点生命值！`);
-			document.getElementById('lives').textContent = lives;
 			if (lives <= 0) endGame();
 			else {
 				player.x = canvas.width / 2;
@@ -1061,6 +1124,9 @@ function update(timestamp) {
 	// 更新爆炸
 	explosions.forEach(ex => ex.frame += gTimeScale);
 	explosions = explosions.filter(ex => ex.frame < ex.maxFrame);
+
+	// 更新属性面板
+	updateStatsPanel();
 }
 function showNotification(text) {
 	notifications.push({ text, born: performance.now() });
@@ -1214,9 +1280,6 @@ function resetGameState() {
 	player.parryActive = false; player.parryStart = 0; player.parryCooldownUntil = 0;
 	player.invincibleUntil = 0;
 	player.tilt = 0; player.targetTilt = 0;
-	document.getElementById('score').textContent = 0;
-	document.getElementById('lives').textContent = 3;
-	document.getElementById('level').textContent = 1;
 	document.getElementById('gameOver').style.display = 'none';
 }
 
