@@ -2,7 +2,7 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
 // 调试用：设置游戏开始时直接跳到的关卡（0表示正常从第1关开始）
-const DEBUG_START_LEVEL = 5;
+const DEBUG_START_LEVEL = 0;
 
 let score = 0, lives = 3, level = 1, gameRunning = false;
 let gameStarted = false;
@@ -207,21 +207,26 @@ function drawPlayer() {
 	ctx.save();
 	ctx.translate(player.x, player.y);
 	ctx.rotate(player.tilt);
-	if (player.imgLoaded) {
-		// 发光效果
-		ctx.shadowColor = '#d97706';
-		ctx.shadowBlur = 18;
-		ctx.drawImage(player.img, -player.w / 2, -player.h / 2, player.w, player.h);
-	} else {
-		// 备用：橙色六边形
-		ctx.shadowColor = '#d97706'; ctx.shadowBlur = 18;
-		ctx.fillStyle = '#d97706';
-		ctx.beginPath();
-		for (let i = 0; i < 6; i++) {
-			const a = (Math.PI / 3) * i - Math.PI / 6;
-			ctx.lineTo(Math.cos(a) * 24, Math.sin(a) * 24);
+	// 无敌状态下0.25秒闪烁一次
+	const isInvincible = performance.now() < player.invincibleUntil;
+	const showPlayer = !isInvincible || Math.floor(performance.now() / 250) % 2 === 0;
+	if (showPlayer) {
+		if (player.imgLoaded) {
+			// 发光效果
+			ctx.shadowColor = '#d97706';
+			ctx.shadowBlur = 18;
+			ctx.drawImage(player.img, -player.w / 2, -player.h / 2, player.w, player.h);
+		} else {
+			// 备用：橙色六边形
+			ctx.shadowColor = '#d97706'; ctx.shadowBlur = 18;
+			ctx.fillStyle = '#d97706';
+			ctx.beginPath();
+			for (let i = 0; i < 6; i++) {
+				const a = (Math.PI / 3) * i - Math.PI / 6;
+				ctx.lineTo(Math.cos(a) * 24, Math.sin(a) * 24);
+			}
+			ctx.closePath(); ctx.fill();
 		}
-		ctx.closePath(); ctx.fill();
 	}
 	ctx.restore();
 	// 格挡护盾视觉
@@ -931,21 +936,8 @@ function update(timestamp) {
 				else { player.x = canvas.width / 2; player.y = canvas.height - 80; }
 				return;
 			}
-			// 道具护盾优先
-			if (player.shieldActive && player.shieldHits > 0) {
-				player.shieldHits--;
-				if (player.shieldHits <= 0) player.shieldActive = false;
-				if (i < enemyBullets.length) enemyBullets.splice(i, 1);
-				else enemies.splice(i - enemyBullets.length, 1);
-				return;
-			}
-			// 无敌状态
-			if (timestamp < player.invincibleUntil) {
-				if (i < enemyBullets.length) enemyBullets.splice(i, 1);
-				else enemies.splice(i - enemyBullets.length, 1);
-				return;
-			}
-			// K键格挡盾
+			const isInvincible = timestamp < player.invincibleUntil;
+			// K键格挡盾（优先于护盾）
 			if (player.parryActive) {
 				const parryElapsed = timestamp - player.parryStart;
 				const totalParryWindow = 3000 * playerEnergyRegenEfficiency;
@@ -1000,9 +992,53 @@ function update(timestamp) {
 						else enemies.splice(i - enemyBullets.length, 1);
 						return;
 					}
-					// 未格挡，正常受伤
+					// 普通格挡失败，继续检查护盾
+					// 道具护盾
+					if (player.shieldActive && player.shieldHits > 0) {
+						player.shieldHits--;
+						if (player.shieldHits <= 0) player.shieldActive = false;
+						if (i < enemyBullets.length) enemyBullets.splice(i, 1);
+						else enemies.splice(i - enemyBullets.length, 1);
+						return;
+					}
+					// 普通格挡失败且无护盾，无敌状态下不受伤
+					if (isInvincible) {
+						if (i < enemyBullets.length) enemyBullets.splice(i, 1);
+						else enemies.splice(i - enemyBullets.length, 1);
+						return;
+					}
+					// 未格挡且无护盾，正常受伤
 				} else {
 					player.parryActive = false;
+					// 格挡结束，检查护盾
+					if (player.shieldActive && player.shieldHits > 0) {
+						player.shieldHits--;
+						if (player.shieldHits <= 0) player.shieldActive = false;
+						if (i < enemyBullets.length) enemyBullets.splice(i, 1);
+						else enemies.splice(i - enemyBullets.length, 1);
+						return;
+					}
+					// 格挡结束且无护盾，无敌状态下不受伤
+					if (isInvincible) {
+						if (i < enemyBullets.length) enemyBullets.splice(i, 1);
+						else enemies.splice(i - enemyBullets.length, 1);
+						return;
+					}
+				}
+			} else {
+				// 未格挡，检查护盾
+				if (player.shieldActive && player.shieldHits > 0) {
+					player.shieldHits--;
+					if (player.shieldHits <= 0) player.shieldActive = false;
+					if (i < enemyBullets.length) enemyBullets.splice(i, 1);
+					else enemies.splice(i - enemyBullets.length, 1);
+					return;
+				}
+				// 未格挡且无护盾，无敌状态下不受伤
+				if (isInvincible) {
+					if (i < enemyBullets.length) enemyBullets.splice(i, 1);
+					else enemies.splice(i - enemyBullets.length, 1);
+					return;
 				}
 			}
 			sfxHurt.currentTime = 0;
