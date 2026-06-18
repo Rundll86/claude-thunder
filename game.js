@@ -23,6 +23,9 @@ let lastEnemySpawn = 0;
 let enemySpawnInterval = 1500;
 const maxEnemies = 7;
 let lastShot = 0;
+let waveEnemiesRemaining = 0;
+let waveSpawnQueue = 0;
+let lastWaveSpawn = 0;
 const baseShootInterval = 400;
 let playerAtkSpeed = 1.0;
 let playerBulletSpeed = 5;
@@ -104,6 +107,24 @@ function spawnBoss(lvl) {
 	showNotification('⚠️ BOSS 出现！');
 }
 
+function startLevel(lvl) {
+	level = lvl;
+	document.getElementById('level').textContent = level;
+	const nextBoss = Math.ceil(level / 5) * 5;
+	const wavesLeft = nextBoss - level;
+	if (wavesLeft > 0) {
+		showNotification(`🎯 距离 Boss 还有 ${wavesLeft} 关`);
+	}
+	if (level % 5 === 0 && level > highestBossLevelDefeated) {
+		spawnBoss(level);
+	} else {
+		const count = 8 + level * 2;
+		waveEnemiesRemaining = count;
+		waveSpawnQueue = count;
+		lastWaveSpawn = performance.now();
+	}
+}
+
 function spawnEnemy() {
 	let spawnPool;
 	if (level < 2) {
@@ -117,13 +138,12 @@ function spawnEnemy() {
 		spawnPool = ['normal', 'normal', 'fast', 'fast', 'tank', 'tank', 'tank', 'sentry'];
 	}
 	const type = spawnPool[Math.floor(Math.random() * spawnPool.length)];
-	const lvlBonus = Math.floor((level - 1) / 2);
-	const tankHp = 3 + lvlBonus * 2 * 2;
+	const normalHp = Math.floor(Math.pow(1.5, level));
 	let cfg = {
-		normal: { w: 40, h: 40, hp: 1 + lvlBonus * 2, speed: 0.6 + level * 0.08, color: '#e74c3c', score: 10, shootChance: 0.003 },
-		fast: { w: 30, h: 30, hp: 1 + lvlBonus, speed: 1.2 + level * 0.12, color: '#e67e22', score: 20, shootChance: 0.002 },
-		tank: { w: 52, h: 52, hp: tankHp, speed: 0.4 + level * 0.04, color: '#8e44ad', score: 40, shootChance: 0.004 },
-		sentry: { w: 58, h: 58, hp: tankHp * 1.5, speed: 0, color: '#16a085', score: 80, shootChance: 0.008, shootInterval: 1250, aimedShot: true, guaranteedDrop: true }
+		normal: { w: 40, h: 40, hp: normalHp, speed: 0.6 + level * 0.08, color: '#e74c3c', score: 10, shootChance: 0.003 },
+		fast: { w: 30, h: 30, hp: Math.floor(Math.pow(1.5, level - 1)), speed: 1.2 + level * 0.12, color: '#e67e22', score: 20, shootChance: 0.002 },
+		tank: { w: 52, h: 52, hp: normalHp * 2, speed: 0.4 + level * 0.04, color: '#8e44ad', score: 40, shootChance: 0.004 },
+		sentry: { w: 58, h: 58, hp: normalHp * 3, speed: 0, color: '#16a085', score: 80, shootChance: 0.008, shootInterval: 1250, aimedShot: true, guaranteedDrop: true }
 	}[type];
 	enemies.push({
 		x: Math.random() * (canvas.width - cfg.w) + cfg.w / 2,
@@ -199,7 +219,7 @@ function drawPlayer() {
 	if (player.parryActive) {
 		const now = performance.now();
 		const elapsed = now - player.parryStart;
-		const perfect = elapsed < 200;
+		const perfect = elapsed < 1000;
 		const alpha = perfect ? 0.45 : 0.22;
 		const fillColor = perfect ? `rgba(0,255,255,${alpha})` : `rgba(80,160,255,${alpha})`;
 		const glowColor = perfect ? '#00ffff' : '#50a0ff';
@@ -544,21 +564,9 @@ function updateAndDrawSparks() {
 function update(timestamp) {
 	if (!gameRunning) return;
 
-	// 同步关卡并检查Boss战
-	if (!inBossFight) {
-		const computedLevel = Math.floor(score / 200) + 1;
-		if (computedLevel !== level) {
-			level = computedLevel;
-			document.getElementById('level').textContent = level;
-			const nextBoss = Math.ceil(level / 5) * 5;
-			const wavesLeft = nextBoss - level;
-			if (wavesLeft > 0) {
-				showNotification(`🎯 距离 Boss 还有 ${wavesLeft} 关`);
-			}
-		}
-		if (level % 1 === 0 && level > highestBossLevelDefeated) {
-			spawnBoss(level);
-		}
+	// 检查是否清场进入下一关
+	if (!inBossFight && waveEnemiesRemaining <= 0 && waveSpawnQueue <= 0 && !enemies.some(e => !e.isBoss)) {
+		startLevel(level + 1);
 	}
 
 	// 移动玩家
@@ -623,17 +631,18 @@ function update(timestamp) {
 		player.parryActive = false;
 	}
 	// 超时自动结束：最大维持时间受能量再生效率影响；格挡后冷却受攻击速度影响
-	const totalParryWindow = 500 * playerEnergyRegenEfficiency;
+	const totalParryWindow = 3000 * playerEnergyRegenEfficiency;
 	if (player.parryActive && timestamp - player.parryStart > totalParryWindow) {
 		player.parryActive = false;
 		player.parryCooldownUntil = timestamp + 500 / playerAtkSpeed;
 	}
 
-	// 生成敌人：场上最多同时存在 7 个敌人
+	// 生成敌人：按波次分批生成，场上最多同时存在 7 个敌人
 	const interval = Math.max(500, enemySpawnInterval - (level - 1) * 150);
-	if (!inBossFight && timestamp - lastEnemySpawn > interval && enemies.length < maxEnemies) {
+	if (!inBossFight && waveSpawnQueue > 0 && timestamp - lastWaveSpawn > interval && enemies.length < maxEnemies) {
 		spawnEnemy();
-		lastEnemySpawn = timestamp;
+		waveSpawnQueue--;
+		lastWaveSpawn = timestamp;
 	}
 
 	// 更新星星
@@ -682,12 +691,12 @@ function update(timestamp) {
 			e.x += e.speed * e.moveDir * gTimeScale;
 			if (e.x - e.w / 2 < 0) { e.x = e.w / 2; e.moveDir = 1; }
 			if (e.x + e.w / 2 > canvas.width) { e.x = canvas.width - e.w / 2; e.moveDir = -1; }
-			// 招式1：每隔3秒向玩家连续发射3颗子弹，间隔50ms
-			if (timestamp - e.lastShot1 > 3000 && e.burstCount === 0) {
+			// 招式1：每隔2秒向玩家连续发射3颗子弹，间隔100ms
+			if (timestamp - e.lastShot1 > 2000 && e.burstCount === 0) {
 				e.burstCount = 3;
 				e.burstTimer = timestamp;
 			}
-			if (e.burstCount > 0 && timestamp - e.burstTimer >= (3 - e.burstCount) * 50) {
+			if (e.burstCount > 0 && timestamp - e.burstTimer >= (3 - e.burstCount) * 100) {
 				const dx = player.x - e.x;
 				const dy = player.y - e.y;
 				const dist = Math.hypot(dx, dy) || 1;
@@ -696,8 +705,8 @@ function update(timestamp) {
 				e.burstCount--;
 				if (e.burstCount === 0) e.lastShot1 = timestamp;
 			}
-			// 招式2：每隔6秒向周围一圈发射10个子弹
-			if (timestamp - e.lastShot2 > 6000) {
+			// 招式2：每隔5秒向周围一圈发射10个子弹
+			if (timestamp - e.lastShot2 > 5000) {
 				for (let i = 0; i < 10; i++) {
 					const angle = (Math.PI * 2 / 10) * i;
 					enemyBullets.push({ x: e.x, y: e.y + e.h / 2, vx: Math.cos(angle) * 3, vy: Math.sin(angle) * 3, angle, shooter: e });
@@ -706,6 +715,11 @@ function update(timestamp) {
 			}
 		} else {
 			e.y += e.speed * gTimeScale;
+			if (e.y > canvas.height + 60) {
+				e.y = -e.h;
+				e.x = Math.random() * (canvas.width - e.w) + e.w / 2;
+			}
+			// 敌人射击，哨兵攻速更快且会瞄准玩家
 			if (timestamp - e.lastShot >= (e.shootInterval || 2500)) {
 				if (e.aimedShot) {
 					const dx = player.x - e.x;
@@ -722,7 +736,7 @@ function update(timestamp) {
 			}
 		}
 	});
-	enemies = enemies.filter(e => e.isBoss || e.y < canvas.height + 60);
+
 
 	// 生成道具
 	powerups.forEach(p => p.y += 1.5 * gTimeScale);
@@ -810,8 +824,6 @@ function update(timestamp) {
 					if (e.isBoss) {
 						inBossFight = false;
 						highestBossLevelDefeated = bossFightLevel;
-						level = Math.floor(score / 200) + 1;
-						document.getElementById('level').textContent = level;
 						const dropTypes = ['multishot', 'atkspeed', 'shield', 'bulletspeed', 'movespeed', 'ricochet', 'energyregen', 'pierce'];
 						dropTypes.forEach((type, i) => {
 							powerups.push({ x: e.x + (i - 4) * 25, y: e.y, type });
@@ -820,11 +832,9 @@ function update(timestamp) {
 							powerups.push({ x: e.x + (Math.random() - 0.5) * 60, y: e.y + (Math.random() - 0.5) * 30, type: 'heal' });
 						}
 						showNotification('🏆 BOSS 击破！');
+						startLevel(level + 1);
 					} else {
-						if (!inBossFight) {
-							level = Math.floor(score / 200) + 1;
-							document.getElementById('level').textContent = level;
-						}
+						waveEnemiesRemaining--;
 						// 随机掉落道具，哨兵必定掉落
 						if (e.guaranteedDrop || Math.random() < 0.4) {
 							// 权重表：哨兵掉落 heal 的权重是其他单个道具的 2 倍
@@ -866,9 +876,8 @@ function update(timestamp) {
 			// K键格挡盾
 			if (player.parryActive) {
 				const parryElapsed = timestamp - player.parryStart;
-				const totalParryWindow = 500 * playerEnergyRegenEfficiency;
-				const imperfectParryWindow = 300 / playerAtkSpeed;
-				const perfectParryWindow = totalParryWindow - imperfectParryWindow;
+				const totalParryWindow = 3000 * playerEnergyRegenEfficiency;
+				const perfectParryWindow = 1000;
 				if (parryElapsed < perfectParryWindow) {
 					// 完美格挡：喷火花并立即结束格挡状态
 					sfxPerfectParry.currentTime = 0;
@@ -1077,6 +1086,9 @@ function resetGameState() {
 	highestBossLevelDefeated = 0;
 	lastEnemySpawn = 0;
 	lastShot = 0;
+	waveEnemiesRemaining = 0;
+	waveSpawnQueue = 0;
+	lastWaveSpawn = 0;
 	playerAtkSpeed = 1.0;
 	playerBulletSpeed = 7;
 	playerEnergyRegenEfficiency = 1.0;
@@ -1098,6 +1110,7 @@ function beginGame() {
 	gameStarted = true;
 	gameRunning = true;
 	resetGameState();
+	startLevel(1);
 }
 
 function restartGame() {
