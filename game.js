@@ -18,6 +18,10 @@ let skillEnergy = 0;
 const skillEnergyMax = 100;
 let skillSpaceWasDown = false;
 let gTimeScale = 1;
+let cameraShake = { intensity: 0, duration: 0, startTime: 0 };
+function shakeCamera(intensity, duration) {
+	cameraShake = { intensity, duration, startTime: performance.now() };
+}
 let keys = {};
 let inBossFight = false;
 let bossFightLevel = 0;
@@ -87,7 +91,7 @@ canvas.addEventListener('click', () => {
 
 function spawnBoss(lvl) {
 	const now = performance.now();
-	const hp = 80 + (lvl - 5) * 40;
+	const hp = Math.floor(80 * Math.pow(1.35, lvl - 5));
 	enemies.push({
 		x: canvas.width / 2,
 		y: 100,
@@ -730,7 +734,11 @@ function update(timestamp) {
 	stars.forEach(s => { s.y += s.speed * gTimeScale; if (s.y > canvas.height) s.y = 0; });
 
 	// 更新子弹
-	bullets = bullets.filter(b => b.y > -30 && b.y < canvas.height + 30 && b.x > -30 && b.x < canvas.width + 30);
+	bullets = bullets.filter(b => {
+		const inBounds = b.y > -30 && b.y < canvas.height + 30 && b.x > -30 && b.x < canvas.width + 30;
+		// 追踪导弹即使飞出边界也保留（会飞回来）
+		return inBounds || b._missile;
+	});
 	bullets.forEach(b => {
 		if (b._missile) {
 			const target = enemies.reduce((nearest, e) => {
@@ -740,11 +748,30 @@ function update(timestamp) {
 				return ed < nd ? e : nearest;
 			}, null);
 			if (target) {
+				// 有敌人，追踪目标
 				const targetAngle = Math.atan2(target.x - b.x, -(target.y - b.y));
 				let diff = targetAngle - (b.angle || 0);
 				diff = Math.atan2(Math.sin(diff), Math.cos(diff));
 				const turn = b.turnRate || 0.12;
 				b.angle = (b.angle || 0) + Math.max(-turn, Math.min(turn, diff)) * gTimeScale;
+			} else {
+				// 没有敌人，飞向玩家附近并盘旋
+				const dx = player.x - b.x;
+				const dy = player.y - b.y;
+				const dist = Math.hypot(dx, dy);
+				const hoverRadius = 80; // 盘旋半径
+
+				if (dist > hoverRadius) {
+					// 飞向玩家
+					const targetAngle = Math.atan2(dx, -dy);
+					let diff = targetAngle - (b.angle || 0);
+					diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+					const turn = b.turnRate || 0.15;
+					b.angle = (b.angle || 0) + Math.max(-turn, Math.min(turn, diff)) * gTimeScale;
+				} else {
+					// 到达玩家附近，开始绕玩家盘旋
+					b.angle = (b.angle || 0) + 0.06 * gTimeScale;
+				}
 			}
 			const speed = b.speed || 6.5;
 			b.x += Math.sin(b.angle || 0) * speed * gTimeScale;
@@ -1025,7 +1052,7 @@ function update(timestamp) {
 					const targets = enemies.includes(shooter)
 						? [shooter, ...otherTargets.slice(0, 2)]
 						: otherTargets.slice(0, 3);
-					for (let j = 0; j < 3; j++) {
+					for (let j = 0; j < 2 + player.bulletCount; j++) {
 						let angle;
 						const target = targets[j];
 						if (target) {
@@ -1040,6 +1067,7 @@ function update(timestamp) {
 						bullets.push({ x: player.x, y: player.y - player.h / 2, angle, damage: 1, _parryCounter: true });
 					}
 					showNotification('⚡️完美格挡！');
+					shakeCamera(30, 500);
 					if (i < enemyBullets.length) enemyBullets.splice(i, 1);
 					else {
 						enemies.splice(i - enemyBullets.length, 1);
@@ -1160,6 +1188,20 @@ function showNotification(text) {
 	if (notifications.length > 4) notifications.shift();
 }
 function draw() {
+	// 摄像机抖动
+	ctx.save();
+	if (cameraShake.intensity > 0) {
+		const elapsed = performance.now() - cameraShake.startTime;
+		if (elapsed < cameraShake.duration) {
+			const progress = 1 - elapsed / cameraShake.duration;
+			const offsetX = (Math.random() - 0.5) * cameraShake.intensity * progress;
+			const offsetY = (Math.random() - 0.5) * cameraShake.intensity * progress;
+			ctx.translate(offsetX, offsetY);
+		} else {
+			cameraShake.intensity = 0;
+		}
+	}
+
 	// 背景
 	ctx.fillStyle = '#050a1a';
 	ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1272,6 +1314,7 @@ function draw() {
 		ctx.fillText(n.text, canvas.width / 2, y);
 		ctx.restore();
 	});
+	ctx.restore(); // 恢复摄像机抖动
 }
 
 let lastTimestamp = 0;
