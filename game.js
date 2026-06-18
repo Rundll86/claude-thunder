@@ -1209,6 +1209,20 @@ function draw() {
 	// 技能图标
 	drawSkillIcon();
 
+	// 生命值显示（左下角）
+	ctx.save();
+	ctx.font = '24px sans-serif';
+	ctx.textAlign = 'left';
+	ctx.textBaseline = 'middle';
+	ctx.shadowColor = '#ff4d6d';
+	ctx.shadowBlur = 10;
+	ctx.fillText('❤️', 15, canvas.height - 20);
+	ctx.shadowBlur = 0;
+	ctx.font = 'bold 18px sans-serif';
+	ctx.fillStyle = '#fff';
+	ctx.fillText(`${lives}`, 50, canvas.height - 20);
+	ctx.restore();
+
 	// 道具提示通知
 	const now = performance.now();
 	notifications.forEach((n, i) => {
