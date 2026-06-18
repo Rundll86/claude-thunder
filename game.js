@@ -1041,7 +1041,10 @@ function update(timestamp) {
 					}
 					showNotification('⚡️完美格挡！');
 					if (i < enemyBullets.length) enemyBullets.splice(i, 1);
-					else enemies.splice(i - enemyBullets.length, 1);
+					else {
+						enemies.splice(i - enemyBullets.length, 1);
+						waveEnemiesRemaining--;
+					}
 					return;
 				} else if (parryElapsed <= totalParryWindow) {
 					// 不精准格挡音效
@@ -1053,7 +1056,10 @@ function update(timestamp) {
 						addSkillEnergy(3);
 						showNotification('🛡️格挡！');
 						if (i < enemyBullets.length) enemyBullets.splice(i, 1);
-						else enemies.splice(i - enemyBullets.length, 1);
+						else {
+							enemies.splice(i - enemyBullets.length, 1);
+							waveEnemiesRemaining--;
+						}
 						return;
 					}
 					// 普通格挡失败，继续检查护盾
@@ -1062,13 +1068,19 @@ function update(timestamp) {
 						player.shieldHits--;
 						if (player.shieldHits <= 0) player.shieldActive = false;
 						if (i < enemyBullets.length) enemyBullets.splice(i, 1);
-						else enemies.splice(i - enemyBullets.length, 1);
+						else {
+							enemies.splice(i - enemyBullets.length, 1);
+							waveEnemiesRemaining--;
+						}
 						return;
 					}
 					// 普通格挡失败且无护盾，无敌状态下不受伤
 					if (isInvincible) {
 						if (i < enemyBullets.length) enemyBullets.splice(i, 1);
-						else enemies.splice(i - enemyBullets.length, 1);
+						else {
+							enemies.splice(i - enemyBullets.length, 1);
+							waveEnemiesRemaining--;
+						}
 						return;
 					}
 					// 未格挡且无护盾，正常受伤
@@ -1079,13 +1091,19 @@ function update(timestamp) {
 						player.shieldHits--;
 						if (player.shieldHits <= 0) player.shieldActive = false;
 						if (i < enemyBullets.length) enemyBullets.splice(i, 1);
-						else enemies.splice(i - enemyBullets.length, 1);
+						else {
+							enemies.splice(i - enemyBullets.length, 1);
+							waveEnemiesRemaining--;
+						}
 						return;
 					}
 					// 格挡结束且无护盾，无敌状态下不受伤
 					if (isInvincible) {
 						if (i < enemyBullets.length) enemyBullets.splice(i, 1);
-						else enemies.splice(i - enemyBullets.length, 1);
+						else {
+							enemies.splice(i - enemyBullets.length, 1);
+							waveEnemiesRemaining--;
+						}
 						return;
 					}
 				}
@@ -1095,13 +1113,19 @@ function update(timestamp) {
 					player.shieldHits--;
 					if (player.shieldHits <= 0) player.shieldActive = false;
 					if (i < enemyBullets.length) enemyBullets.splice(i, 1);
-					else enemies.splice(i - enemyBullets.length, 1);
+					else {
+						enemies.splice(i - enemyBullets.length, 1);
+						waveEnemiesRemaining--;
+					}
 					return;
 				}
 				// 未格挡且无护盾，无敌状态下不受伤
 				if (isInvincible) {
 					if (i < enemyBullets.length) enemyBullets.splice(i, 1);
-					else enemies.splice(i - enemyBullets.length, 1);
+					else {
+						enemies.splice(i - enemyBullets.length, 1);
+						waveEnemiesRemaining--;
+					}
 					return;
 				}
 			}
@@ -1109,7 +1133,10 @@ function update(timestamp) {
 			sfxHurt.play().catch(() => { });
 			createExplosion(player.x, player.y, true);
 			if (i < enemyBullets.length) enemyBullets.splice(i, 1);
-			else enemies.splice(i - enemyBullets.length, 1);
+			else {
+				enemies.splice(i - enemyBullets.length, 1);
+				waveEnemiesRemaining--;
+			}
 			lives--;
 			addSkillEnergy(2);
 			showNotification(`💔受损，剩余${lives}点生命值！`);
