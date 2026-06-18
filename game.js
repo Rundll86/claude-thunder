@@ -1,6 +1,9 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+// 调试用：设置游戏开始时直接跳到的关卡（0表示正常从第1关开始）
+const DEBUG_START_LEVEL = 5;
+
 let score = 0, lives = 3, level = 1, gameRunning = false;
 let gameStarted = false;
 let notifications = [];
@@ -50,7 +53,8 @@ const player = {
 	parryStart: 0,
 	parryCooldownUntil: 0,
 	tilt: 0,
-	targetTilt: 0
+	targetTilt: 0,
+	invincibleUntil: 0
 };
 
 // 加载 Claude logo
@@ -100,7 +104,12 @@ function spawnBoss(lvl) {
 		lastShot1: now,
 		lastShot2: now,
 		burstCount: 0,
-		burstTimer: 0
+		burstTimer: 0,
+		lastDash: now,
+		dashState: 'ready',
+		dashBullets: 0,
+		dashBulletTimer: 0,
+		dashSpeed: 0
 	});
 	inBossFight = true;
 	bossFightLevel = lvl;
@@ -688,30 +697,74 @@ function update(timestamp) {
 	// 更新敌人
 	enemies.forEach(e => {
 		if (e.isBoss) {
-			e.x += e.speed * e.moveDir * gTimeScale;
-			if (e.x - e.w / 2 < 0) { e.x = e.w / 2; e.moveDir = 1; }
-			if (e.x + e.w / 2 > canvas.width) { e.x = canvas.width - e.w / 2; e.moveDir = -1; }
-			// 招式1：每隔2秒向玩家连续发射3颗子弹，间隔100ms
-			if (timestamp - e.lastShot1 > 2000 && e.burstCount === 0) {
-				e.burstCount = 3;
-				e.burstTimer = timestamp;
-			}
-			if (e.burstCount > 0 && timestamp - e.burstTimer >= (3 - e.burstCount) * 100) {
-				const dx = player.x - e.x;
-				const dy = player.y - e.y;
-				const dist = Math.hypot(dx, dy) || 1;
-				const bs = 4;
-				enemyBullets.push({ x: e.x, y: e.y + e.h / 2, vx: dx / dist * bs, vy: dy / dist * bs, angle: Math.atan2(dx, -dy), shooter: e });
-				e.burstCount--;
-				if (e.burstCount === 0) e.lastShot1 = timestamp;
-			}
-			// 招式2：每隔5秒向周围一圈发射10个子弹
-			if (timestamp - e.lastShot2 > 5000) {
-				for (let i = 0; i < 10; i++) {
-					const angle = (Math.PI * 2 / 10) * i;
-					enemyBullets.push({ x: e.x, y: e.y + e.h / 2, vx: Math.cos(angle) * 3, vy: Math.sin(angle) * 3, angle, shooter: e });
+			// 返回阶段不使用其他技能
+			if (e.dashState !== 'returning') {
+				// 招式1：每隔2秒向玩家连续发射3颗子弹，间隔100ms
+				if (timestamp - e.lastShot1 > 2000 && e.burstCount === 0) {
+					e.burstCount = 3;
+					e.burstTimer = timestamp;
 				}
-				e.lastShot2 = timestamp;
+				if (e.burstCount > 0 && timestamp - e.burstTimer >= (3 - e.burstCount) * 100) {
+					const dx = player.x - e.x;
+					const dy = player.y - e.y;
+					const dist = Math.hypot(dx, dy) || 1;
+					const bs = 4;
+					enemyBullets.push({ x: e.x, y: e.y + e.h / 2, vx: dx / dist * bs, vy: dy / dist * bs, angle: Math.atan2(dx, -dy), shooter: e });
+					e.burstCount--;
+					if (e.burstCount === 0) e.lastShot1 = timestamp;
+				}
+				// 招式2：每隔5秒向周围一圈发射10个子弹
+				if (timestamp - e.lastShot2 > 5000) {
+					for (let i = 0; i < 10; i++) {
+						const angle = (Math.PI * 2 / 10) * i;
+						enemyBullets.push({ x: e.x, y: e.y + e.h / 2, vx: Math.cos(angle) * 3, vy: Math.sin(angle) * 3, angle, shooter: e });
+					}
+					e.lastShot2 = timestamp;
+				}
+				// 招式3：冲刺攻击 - 每隔8秒触发
+				if (e.dashState === 'ready' && timestamp - e.lastDash > 8000) {
+					e.dashState = 'charging';
+					e.dashBullets = 0;
+					e.dashBulletTimer = timestamp;
+				}
+				// 冲刺前发射散射子弹
+				if (e.dashState === 'charging') {
+					if (e.dashBullets < 6 && timestamp - e.dashBulletTimer >= 100) {
+						const baseAngle = Math.atan2(player.x - e.x, -(player.y - e.y));
+						const spread = Math.PI / 18; // 10度
+						const angle = baseAngle + (e.dashBullets - 2.5) * spread;
+						enemyBullets.push({ x: e.x, y: e.y + e.h / 2, vx: Math.cos(angle) * 3.5, vy: Math.sin(angle) * 3.5, angle, shooter: e });
+						e.dashBullets++;
+						e.dashBulletTimer = timestamp;
+					}
+					if (e.dashBullets >= 6) {
+						e.dashState = 'dashing';
+					}
+				}
+				// 冲刺向下（逐渐加速）
+				if (e.dashState === 'dashing') {
+					e.dashSpeed = Math.min(e.dashSpeed + 0.5 * gTimeScale, 8);
+					e.y += e.dashSpeed * gTimeScale;
+					if (e.y > canvas.height + 100) {
+						e.dashState = 'returning';
+					}
+				}
+				// 正常左右移动
+				if (e.dashState === 'ready') {
+					e.x += e.speed * e.moveDir * gTimeScale;
+					if (e.x - e.w / 2 < 0) { e.x = e.w / 2; e.moveDir = 1; }
+					if (e.x + e.w / 2 > canvas.width) { e.x = canvas.width - e.w / 2; e.moveDir = -1; }
+				}
+			}
+			// 返回阶段：加快移速50%，不使用任何技能
+			if (e.dashState === 'returning') {
+				e.y -= 1.5 * gTimeScale;
+				if (e.y <= 100) {
+					e.y = 100;
+					e.dashState = 'ready';
+					e.lastDash = timestamp;
+					e.dashSpeed = 0; // 重置冲刺速度，下次冲刺重新加速
+				}
 			}
 		} else {
 			e.y += e.speed * gTimeScale;
@@ -865,10 +918,29 @@ function update(timestamp) {
 	[...enemyBullets, ...enemies].forEach((obj, i) => {
 		const dx = obj.x - player.x, dy = obj.y - player.y;
 		if (Math.sqrt(dx * dx + dy * dy) < pr + (obj.h ? obj.h / 2 - 8 : 4)) {
+			// 碰撞到Boss时，玩家直接受伤（Boss不会被碰撞杀死）
+			if (obj.isBoss) {
+				sfxHurt.currentTime = 0;
+				sfxHurt.play().catch(() => { });
+				createExplosion(player.x, player.y, true);
+				lives--;
+				addSkillEnergy(2);
+				showNotification(`💔受损，剩余${lives}点生命值！`);
+				document.getElementById('lives').textContent = lives;
+				if (lives <= 0) endGame();
+				else { player.x = canvas.width / 2; player.y = canvas.height - 80; }
+				return;
+			}
 			// 道具护盾优先
 			if (player.shieldActive && player.shieldHits > 0) {
 				player.shieldHits--;
 				if (player.shieldHits <= 0) player.shieldActive = false;
+				if (i < enemyBullets.length) enemyBullets.splice(i, 1);
+				else enemies.splice(i - enemyBullets.length, 1);
+				return;
+			}
+			// 无敌状态
+			if (timestamp < player.invincibleUntil) {
 				if (i < enemyBullets.length) enemyBullets.splice(i, 1);
 				else enemies.splice(i - enemyBullets.length, 1);
 				return;
@@ -886,6 +958,7 @@ function update(timestamp) {
 					addSkillEnergy(12);
 					player.parryActive = false;
 					player.parryCooldownUntil = timestamp + 1000;
+					player.invincibleUntil = timestamp + 2000;
 					// 完美格挡：免伤并向包含发射者在内的3个随机敌人发射反击子弹；敌人不足则随机散射补足
 					const shooter = (i < enemyBullets.length && obj.shooter) ? obj.shooter : obj;
 					const otherTargets = enemies.filter(e => e !== shooter);
@@ -942,7 +1015,11 @@ function update(timestamp) {
 			showNotification(`💔受损，剩余${lives}点生命值！`);
 			document.getElementById('lives').textContent = lives;
 			if (lives <= 0) endGame();
-			else { player.x = canvas.width / 2; player.y = canvas.height - 80; }
+			else {
+				player.x = canvas.width / 2;
+				player.y = canvas.height - 80;
+				player.invincibleUntil = timestamp + 2000;
+			}
 		}
 	});
 	// 更新爆炸
@@ -1099,6 +1176,7 @@ function resetGameState() {
 	player.ricochetChance = 0;
 	player.shieldActive = false; player.shieldHits = 0; player.shieldExpiry = 0;
 	player.parryActive = false; player.parryStart = 0; player.parryCooldownUntil = 0;
+	player.invincibleUntil = 0;
 	player.tilt = 0; player.targetTilt = 0;
 	document.getElementById('score').textContent = 0;
 	document.getElementById('lives').textContent = 3;
@@ -1110,7 +1188,11 @@ function beginGame() {
 	gameStarted = true;
 	gameRunning = true;
 	resetGameState();
-	startLevel(1);
+	const startLevelNum = DEBUG_START_LEVEL > 0 ? DEBUG_START_LEVEL : 1;
+	startLevel(startLevelNum);
+	if (DEBUG_START_LEVEL > 0) {
+		showNotification(`🎮 调试模式：直接跳至第 ${startLevelNum} 关`);
+	}
 }
 
 function restartGame() {
