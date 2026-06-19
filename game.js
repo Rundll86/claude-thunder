@@ -22,6 +22,20 @@ let cameraShake = { intensity: 0, duration: 0, startTime: 0 };
 function shakeCamera(intensity, duration) {
 	cameraShake = { intensity, duration, startTime: performance.now() };
 }
+let consecutivePerfectParries = 0; // 连续完美格挡计数
+let overdriveActive = false; // 超频运转状态
+function activateOverdrive() {
+	overdriveActive = true;
+	consecutivePerfectParries = 0;
+	showNotification('⚡⚡⚡超频运转！');
+	shakeCamera(15, 300);
+}
+function resetOverdrive() {
+	if (overdriveActive) {
+		overdriveActive = false;
+		consecutivePerfectParries = 0;
+	}
+}
 let keys = {};
 let inBossFight = false;
 let bossFightLevel = 0;
@@ -259,6 +273,72 @@ function drawPlayer() {
 		ctx.stroke();
 		ctx.restore();
 	}
+	// 超频运转火焰（带拖尾的一圈火焰）
+	if (overdriveActive) {
+		const now = performance.now();
+		const radius = player.w * 0.85;
+		const trailCount = 12; // 拖尾数量
+		const trailInterval = 40; // 每段拖尾的时间间隔（毫秒）
+		ctx.save();
+		ctx.globalCompositeOperation = 'lighter';
+		for (let f = 0; f < 2; f++) {
+			for (let t = 0; t < trailCount; t++) {
+				const timeOffset = t * trailInterval;
+				const age = t / trailCount; // 0=最新, 1=最老
+				const angleOffset = ((now - timeOffset) / 350) + (f * Math.PI);
+				// 火焰自身有轻微的抖动
+				const wobble = Math.sin((now - timeOffset) / 60) * 0.15;
+				const fx = player.x + Math.cos(angleOffset + wobble) * radius;
+				const fy = player.y + Math.sin(angleOffset + wobble) * radius;
+				const fdir = angleOffset + Math.PI / 2;
+				const alpha = Math.pow(1 - age, 1.5); // 衰减曲线
+				const size = 1 - age * 0.6; // 大小衰减
+				const flameLen = 22 * size;
+				const flameWidth = 8 * size;
+				// 外层火焰（橙色）
+				ctx.shadowBlur = 0;
+				ctx.beginPath();
+				ctx.moveTo(fx + Math.cos(fdir + Math.PI / 2) * flameWidth, fy + Math.sin(fdir + Math.PI / 2) * flameWidth);
+				ctx.lineTo(fx + Math.cos(fdir) * flameLen, fy + Math.sin(fdir) * flameLen);
+				ctx.lineTo(fx - Math.cos(fdir + Math.PI / 2) * flameWidth, fy - Math.sin(fdir + Math.PI / 2) * flameWidth);
+				ctx.closePath();
+				const gradOuter = ctx.createLinearGradient(fx, fy - flameLen, fx, fy + flameWidth);
+				gradOuter.addColorStop(0, `rgba(255,200,50,${alpha * 0.9})`);
+				gradOuter.addColorStop(0.4, `rgba(255,100,0,${alpha * 0.7})`);
+				gradOuter.addColorStop(1, `rgba(255,30,0,0)`);
+				ctx.fillStyle = gradOuter;
+				ctx.fill();
+				// 内层火焰（白色+黄色核心）
+				if (t < trailCount * 0.7) {
+					const innerAlpha = alpha * 0.8;
+					const innerSize = size * 0.5;
+					ctx.beginPath();
+					ctx.moveTo(fx + Math.cos(fdir + Math.PI / 2) * flameWidth * innerSize, fy + Math.sin(fdir + Math.PI / 2) * flameWidth * innerSize);
+					ctx.lineTo(fx + Math.cos(fdir) * flameLen * innerSize, fy + Math.sin(fdir) * flameLen * innerSize);
+					ctx.lineTo(fx - Math.cos(fdir + Math.PI / 2) * flameWidth * innerSize, fy - Math.sin(fdir + Math.PI / 2) * flameWidth * innerSize);
+					ctx.closePath();
+					const gradInner = ctx.createRadialGradient(fx, fy, 0, fx, fy, flameLen * innerSize);
+					gradInner.addColorStop(0, `rgba(255,255,255,${innerAlpha})`);
+					gradInner.addColorStop(0.5, `rgba(255,255,150,${innerAlpha * 0.8})`);
+					gradInner.addColorStop(1, `rgba(255,200,0,0)`);
+					ctx.fillStyle = gradInner;
+					ctx.fill();
+				}
+			}
+		}
+		// 外圈光晕
+		ctx.globalCompositeOperation = 'source-over';
+		const glowRadius = player.w * 1.2 + Math.sin(now / 200) * 5;
+		const glowGrad = ctx.createRadialGradient(player.x, player.y, player.w * 0.5, player.x, player.y, glowRadius);
+		glowGrad.addColorStop(0, 'rgba(255,150,0,0.15)');
+		glowGrad.addColorStop(0.5, 'rgba(255,80,0,0.08)');
+		glowGrad.addColorStop(1, 'rgba(255,30,0,0)');
+		ctx.fillStyle = glowGrad;
+		ctx.beginPath();
+		ctx.arc(player.x, player.y, glowRadius, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.restore();
+	}
 }
 
 function drawBoss(e) {
@@ -338,6 +418,7 @@ function drawBullet(b, color) {
 
 function addSkillEnergy(amount) {
 	const readyed = skillEnergy >= skillEnergyMax;
+	if (overdriveActive) amount *= 2; // 超频状态下能量获取翻倍
 	skillEnergy = Math.min(skillEnergyMax, skillEnergy + amount * playerEnergyRegenEfficiency);
 	if (!readyed && skillEnergy >= skillEnergyMax) {
 		showNotification("🌟弹射陨星 已就绪！");
@@ -1020,6 +1101,7 @@ function update(timestamp) {
 				sfxHurt.currentTime = 0;
 				sfxHurt.play().catch(() => { });
 				createExplosion(player.x, player.y, true);
+				resetOverdrive(); // 受伤重置超频
 				lives--;
 				addSkillEnergy(2);
 				showNotification(`💔受损，剩余${lives}点生命值！`);
@@ -1038,12 +1120,19 @@ function update(timestamp) {
 					sfxPerfectParry.currentTime = 0;
 					sfxPerfectParry.play();
 					createParrySparks(player.x, player.y, true);
-					addSkillEnergy(12);
+					addSkillEnergy(15);
+					// 连续完美格挡计数
+					consecutivePerfectParries++;
+					if (consecutivePerfectParries >= 5 && !overdriveActive) {
+						activateOverdrive();
+					}
 					player.parryActive = false;
 					player.parryCooldownUntil = timestamp + 1000;
 					player.invincibleUntil = timestamp + 2000;
 					// 完美格挡：免伤并向所有敌人平均分配反击子弹；无敌人则随机散射
-					const bulletCount = 2 + player.bulletCount;
+					let bulletCount = overdriveActive
+						? player.bulletCount * 3 + 1
+						: player.bulletCount + 1;
 					if (enemies.length > 0) {
 						// 把子弹平均分配给每个敌人
 						const bulletsPerEnemy = Math.floor(bulletCount / enemies.length);
@@ -1080,6 +1169,7 @@ function update(timestamp) {
 					// 不精准格挡音效
 					sfxUnexactParry.currentTime = 0;
 					sfxUnexactParry.play();
+					resetOverdrive(); // 普通格挡重置超频
 					// 不完美格挡窗口随攻击速度缩短：25%概率免伤，但重置攻击冷却
 					if (Math.random() < 0.25) {
 						lastShot = timestamp;
@@ -1116,6 +1206,7 @@ function update(timestamp) {
 					// 未格挡且无护盾，正常受伤
 				} else {
 					player.parryActive = false;
+					resetOverdrive(); // 格挡结束重置超频
 					// 格挡结束，检查护盾
 					if (player.shieldActive && player.shieldHits > 0) {
 						player.shieldHits--;
@@ -1142,6 +1233,7 @@ function update(timestamp) {
 				if (player.shieldActive && player.shieldHits > 0) {
 					player.shieldHits--;
 					if (player.shieldHits <= 0) player.shieldActive = false;
+					resetOverdrive(); // 消耗护盾重置超频
 					if (i < enemyBullets.length) enemyBullets.splice(i, 1);
 					else {
 						enemies.splice(i - enemyBullets.length, 1);
@@ -1346,6 +1438,8 @@ function resetGameState() {
 	notifications = [];
 	skillEnergy = 0;
 	skillSpaceWasDown = false;
+	overdriveActive = false;
+	consecutivePerfectParries = 0;
 	inBossFight = false;
 	bossFightLevel = 0;
 	highestBossLevelDefeated = 0;
