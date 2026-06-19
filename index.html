@@ -108,6 +108,22 @@
 			background: linear-gradient(90deg, #b8860b, #ffd700);
 		}
 
+		#stats .progress-bar.overdrive {
+			background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #00ffff, #0000ff, #8b00ff, #ff0000);
+			background-size: 200% 100%;
+			animation: overdrive-rainbow 1s linear infinite;
+		}
+
+		@keyframes overdrive-rainbow {
+			0% {
+				background-position: 0% 50%;
+			}
+
+			100% {
+				background-position: 200% 50%;
+			}
+		}
+
 		#stats .progress-bar.cooldown {
 			background: rgba(255, 255, 255, 0.2);
 		}
@@ -244,6 +260,13 @@
 			<span class="stat-value" id="statOverloadRicochet">0</span>
 		</div>
 		<div class="status-bar">
+			<div class="status-item">
+				<div class="status-label" id="overdriveLabel">超频进度</div>
+				<div class="progress-container">
+					<div class="progress-bar inactive" id="overdriveBar"></div>
+					<span class="status-text" id="overdriveText">0/5</span>
+				</div>
+			</div>
 			<div class="status-item">
 				<div class="status-label" id="shieldLabel">护盾未激活</div>
 				<div class="progress-container">

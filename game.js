@@ -33,8 +33,8 @@ function activateOverdrive() {
 function resetOverdrive() {
 	if (overdriveActive) {
 		overdriveActive = false;
-		consecutivePerfectParries = 0;
 	}
+	consecutivePerfectParries = 0;
 }
 let keys = {};
 let inBossFight = false;
@@ -489,7 +489,26 @@ function updateStatsPanel() {
 	document.getElementById('statEnergyRegen').textContent = playerEnergyRegenEfficiency.toFixed(2);
 	document.getElementById('statPierce').textContent = `${(playerPierceChance * 100).toFixed(0)}%`;
 	document.getElementById('statRicochet').textContent = `${(playerRicochetChance * 100).toFixed(0)}%`;
-	document.getElementById('statOverloadRicochet').textContent = player.overdriveRicochet > 0 ? `${player.overdriveRicochet}` : '0';
+	document.getElementById('statOverloadRicochet').textContent = player.overloadRicochet > 0 ? `${player.overloadRicochet}` : '0';
+
+	// 超频进度条
+	const overdriveLabel = document.getElementById('overdriveLabel');
+	const overdriveBar = document.getElementById('overdriveBar');
+	const overdriveText = document.getElementById('overdriveText');
+	if (overdriveActive) {
+		overdriveLabel.textContent = '⚡⚡⚡ 超频运转！';
+		overdriveLabel.classList.add('active');
+		overdriveBar.style.width = '100%';
+		overdriveBar.className = 'progress-bar overdrive';
+		overdriveText.textContent = '激活';
+	} else {
+		overdriveLabel.textContent = '超频进度';
+		overdriveLabel.classList.remove('active');
+		const percent = (consecutivePerfectParries / 5) * 100;
+		overdriveBar.style.width = `${percent}%`;
+		overdriveBar.className = consecutivePerfectParries > 0 ? 'progress-bar parry' : 'progress-bar inactive';
+		overdriveText.textContent = `${consecutivePerfectParries}/5`;
+	}
 
 	// 护盾状态
 	const now = performance.now();
@@ -1270,6 +1289,7 @@ function update(timestamp) {
 			sfxHurt.currentTime = 0;
 			sfxHurt.play().catch(() => { });
 			createExplosion(player.x, player.y, true);
+			resetOverdrive(); // 受伤重置超频
 			if (i < enemyBullets.length) enemyBullets.splice(i, 1);
 			else {
 				enemies.splice(i - enemyBullets.length, 1);
