@@ -1042,29 +1042,31 @@ function update(timestamp) {
 					player.parryActive = false;
 					player.parryCooldownUntil = timestamp + 1000;
 					player.invincibleUntil = timestamp + 2000;
-					// 完美格挡：免伤并向包含发射者在内的3个随机敌人发射反击子弹；敌人不足则随机散射补足
-					const shooter = (i < enemyBullets.length && obj.shooter) ? obj.shooter : obj;
-					const otherTargets = enemies.filter(e => e !== shooter);
-					for (let j = otherTargets.length - 1; j > 0; j--) {
-						const k = Math.floor(Math.random() * (j + 1));
-						[otherTargets[j], otherTargets[k]] = [otherTargets[k], otherTargets[j]];
-					}
-					const targets = enemies.includes(shooter)
-						? [shooter, ...otherTargets.slice(0, 2)]
-						: otherTargets.slice(0, 3);
-					for (let j = 0; j < 2 + player.bulletCount; j++) {
-						let angle;
-						const target = targets[j];
-						if (target) {
-							const dist = Math.hypot(target.x - player.x, target.y - player.y);
-							const travelTime = dist / playerBulletSpeed;
-							const targetX = target.x;
-							const targetY = target.y + (target.speed || 0) * travelTime;
-							angle = Math.atan2(targetX - player.x, -(targetY - player.y));
-						} else {
-							angle = (Math.random() - 0.5) * (Math.PI / 2);
+					// 完美格挡：免伤并向所有敌人平均分配反击子弹；无敌人则随机散射
+					const bulletCount = 2 + player.bulletCount;
+					if (enemies.length > 0) {
+						// 把子弹平均分配给每个敌人
+						const bulletsPerEnemy = Math.floor(bulletCount / enemies.length);
+						const extraBullets = bulletCount % enemies.length; // 多余的子弹给前面的敌人
+						let bulletIndex = 0;
+						for (let e = 0; e < enemies.length; e++) {
+							const target = enemies[e];
+							const numBullets = bulletsPerEnemy + (e < extraBullets ? 1 : 0);
+							for (let j = 0; j < numBullets; j++) {
+								const dist = Math.hypot(target.x - player.x, target.y - player.y);
+								const travelTime = dist / playerBulletSpeed;
+								const targetX = target.x;
+								const targetY = target.y + (target.speed || 0) * travelTime;
+								const angle = Math.atan2(targetX - player.x, -(targetY - player.y));
+								bullets.push({ x: player.x, y: player.y - player.h / 2, angle, damage: 1, _parryCounter: true });
+							}
 						}
-						bullets.push({ x: player.x, y: player.y - player.h / 2, angle, damage: 1, _parryCounter: true });
+					} else {
+						// 无敌人，随机散射
+						for (let j = 0; j < bulletCount; j++) {
+							const angle = (Math.random() - 0.5) * (Math.PI / 2);
+							bullets.push({ x: player.x, y: player.y - player.h / 2, angle, damage: 1, _parryCounter: true });
+						}
 					}
 					showNotification('⚡️完美格挡！');
 					shakeCamera(30, 500);
