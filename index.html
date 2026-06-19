@@ -3,7 +3,7 @@
 
 <head>
 	<meta charset="UTF-8">
-	<title>雷电VS克劳德</title>
+	<title>Claude VS 雷电</title>
 	<style>
 		* {
 			margin: 0;
@@ -290,6 +290,189 @@
 			font-size: 13px;
 			margin-top: 20px;
 		}
+
+		.char-hint {
+			color: #9fb3c8;
+			font-size: 13px;
+			margin-top: 15px;
+		}
+
+		.config-btn {
+			margin-top: 10px;
+			padding: 8px 24px;
+			font-size: 14px;
+			color: #4dabf7;
+			background: rgba(77, 171, 247, 0.1);
+			border: 1px solid #4dabf7;
+			border-radius: 12px;
+			cursor: pointer;
+			transition: all 0.3s ease;
+		}
+
+		.config-btn:hover {
+			background: rgba(77, 171, 247, 0.2);
+			box-shadow: 0 0 15px rgba(77, 171, 247, 0.3);
+		}
+
+		.modal {
+			display: none;
+			position: fixed;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+			background: rgba(0, 0, 0, 0.8);
+			justify-content: center;
+			align-items: center;
+			z-index: 200;
+		}
+
+		.modal-content {
+			background: rgba(12, 18, 42, 0.98);
+			border: 2px solid #d97706;
+			border-radius: 16px;
+			padding: 30px 40px;
+			width: 90%;
+			max-width: 450px;
+			text-align: center;
+			box-shadow: 0 0 30px rgba(217, 119, 6, 0.3);
+		}
+
+		.modal-content h2 {
+			color: #ffe066;
+			font-size: 28px;
+			margin-bottom: 25px;
+			text-shadow: 0 0 15px rgba(255, 224, 102, 0.4);
+		}
+
+		.config-section {
+			margin-bottom: 20px;
+			text-align: left;
+		}
+
+		.config-section label {
+			display: block;
+			color: #e6edf7;
+			font-size: 15px;
+			margin-bottom: 8px;
+		}
+
+		.config-section input[type="text"] {
+			width: 100%;
+			padding: 10px 15px;
+			font-size: 16px;
+			background: rgba(255, 255, 255, 0.1);
+			border: 1px solid #d97706;
+			border-radius: 8px;
+			color: #fff;
+			outline: none;
+			transition: border-color 0.3s ease;
+		}
+
+		.config-section input[type="text"]:focus {
+			border-color: #ffe066;
+		}
+
+		.upload-area {
+			position: relative;
+			width: 100%;
+			height: 150px;
+			border: 2px dashed #d97706;
+			border-radius: 10px;
+			cursor: pointer;
+			overflow: hidden;
+		}
+
+		.upload-area:hover {
+			border-color: #ffe066;
+			background: rgba(255, 224, 102, 0.05);
+		}
+
+		.upload-area.dragover {
+			border-color: #ffe066;
+			background: rgba(255, 224, 102, 0.15);
+			transform: scale(1.02);
+		}
+
+		.upload-placeholder {
+			display: flex;
+			flex-direction: column;
+			justify-content: center;
+			align-items: center;
+			height: 100%;
+			color: #9fb3c8;
+		}
+
+		.upload-icon {
+			font-size: 36px;
+			margin-bottom: 10px;
+		}
+
+		.upload-placeholder p {
+			font-size: 14px;
+		}
+
+		.upload-area img.preview {
+			display: block;
+			width: 100%;
+			height: 100%;
+			object-fit: contain;
+		}
+
+		#charImage {
+			display: none;
+		}
+
+		.config-actions {
+			display: flex;
+			gap: 15px;
+			justify-content: center;
+			margin-top: 25px;
+		}
+
+		.save-btn,
+		.cancel-btn {
+			padding: 10px 30px;
+			font-size: 16px;
+			font-weight: bold;
+			border-radius: 12px;
+			cursor: pointer;
+			transition: all 0.3s ease;
+		}
+
+		.save-btn {
+			background: rgba(77, 171, 247, 0.2);
+			border: 2px solid #4dabf7;
+			color: #4dabf7;
+		}
+
+		.save-btn:hover {
+			background: rgba(77, 171, 247, 0.3);
+			box-shadow: 0 0 20px rgba(77, 171, 247, 0.4);
+		}
+
+		.reset-btn {
+			background: rgba(255, 69, 69, 0.2);
+			border: 2px solid #ff453a;
+			color: #ff453a;
+		}
+
+		.reset-btn:hover {
+			background: rgba(255, 69, 69, 0.3);
+			box-shadow: 0 0 20px rgba(255, 69, 69, 0.4);
+		}
+
+		.cancel-btn {
+			background: rgba(255, 255, 255, 0.1);
+			border: 2px solid #9fb3c8;
+			color: #9fb3c8;
+		}
+
+		.cancel-btn:hover {
+			background: rgba(255, 255, 255, 0.15);
+			border-color: #fff;
+			color: #fff;
+		}
 	</style>
 	<link rel="shortcut icon" href="assets\textures\claude.png" type="image/x-icon">
 </head>
@@ -312,11 +495,39 @@
 			</div>
 			<button class="start-btn" onclick="beginGame()">开始游戏</button>
 			<p class="start-hint">按 Enter / 空格 或点击按钮开始</p>
+			<p class="char-hint">你可以配置你喜欢的角色作为游戏主角</p>
+			<button class="config-btn" onclick="showCharConfig()">角色配置</button>
+		</div>
+	</div>
+	<!-- 角色配置弹窗 -->
+	<div id="charConfig" class="modal">
+		<div class="modal-content">
+			<h2>角色配置</h2>
+			<div class="config-section">
+				<label>角色名字</label>
+				<input type="text" id="charName" placeholder="输入角色名字">
+			</div>
+			<div class="config-section">
+				<label>角色图片</label>
+				<div class="upload-area" id="uploadArea" onclick="document.getElementById('charImage').click()">
+					<input type="file" id="charImage" accept="image/*" onchange="previewImage(event)">
+					<div class="upload-placeholder" id="uploadPlaceholder">
+						<span class="upload-icon">📷</span>
+						<p>点击或拖拽上传图片</p>
+					</div>
+					<img id="previewImage" class="preview" style="display: none;">
+				</div>
+			</div>
+			<div class="config-actions">
+				<button class="save-btn" onclick="saveCharConfig()">保存配置</button>
+				<button class="reset-btn" onclick="resetCharConfig()">重置配置</button>
+				<button class="cancel-btn" onclick="hideCharConfig()">取消</button>
+			</div>
 		</div>
 	</div>
 	<canvas id="gameCanvas" width="480" height="700"></canvas>
 	<div id="stats">
-		<h3>属性面板</h3>
+		<h3 id="statsTitle">Claude</h3>
 		<div class="stat-row">
 			<span class="stat-label">分数</span>
 			<span class="stat-value" id="statScore">0</span>

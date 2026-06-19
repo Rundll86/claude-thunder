@@ -104,6 +104,10 @@ canvas.addEventListener('click', () => {
 	if (!gameStarted) beginGame();
 });
 
+// 初始化时加载角色配置
+loadCharConfig();
+initDragUpload();
+
 function spawnBoss(lvl) {
 	const now = performance.now();
 	const hp = Math.floor(80 * Math.pow(1.35, lvl - 5));
@@ -1479,3 +1483,173 @@ function startGame() {
 	const timeout = new Promise(resolve => setTimeout(resolve, 8000));
 	Promise.race([Promise.all(tasks), timeout]).then(startGame);
 })();
+
+// 角色配置相关函数
+function showCharConfig() {
+	document.getElementById('charConfig').style.display = 'flex';
+	// 加载已保存的配置
+	const savedConfig = localStorage.getItem('charConfig');
+	if (savedConfig) {
+		const config = JSON.parse(savedConfig);
+		document.getElementById('charName').value = config.name || '';
+		if (config.imageData) {
+			document.getElementById('previewImage').src = config.imageData;
+			document.getElementById('previewImage').style.display = 'block';
+			document.getElementById('uploadPlaceholder').style.display = 'none';
+		}
+	}
+}
+
+// 初始化拖拽上传
+function initDragUpload() {
+	const uploadArea = document.getElementById('uploadArea');
+	if (!uploadArea) return;
+
+	uploadArea.addEventListener('dragover', (e) => {
+		e.preventDefault();
+		e.stopPropagation();
+		uploadArea.classList.add('dragover');
+	});
+
+	uploadArea.addEventListener('dragleave', (e) => {
+		e.preventDefault();
+		e.stopPropagation();
+		uploadArea.classList.remove('dragover');
+	});
+
+	uploadArea.addEventListener('drop', (e) => {
+		e.preventDefault();
+		e.stopPropagation();
+		uploadArea.classList.remove('dragover');
+
+		const files = e.dataTransfer.files;
+		if (files.length > 0) {
+			const file = files[0];
+			if (file.type.startsWith('image/')) {
+				const reader = new FileReader();
+				reader.onload = function (event) {
+					document.getElementById('previewImage').src = event.target.result;
+					document.getElementById('previewImage').style.display = 'block';
+					document.getElementById('uploadPlaceholder').style.display = 'none';
+				};
+				reader.readAsDataURL(file);
+			}
+		}
+	});
+}
+
+function hideCharConfig() {
+	document.getElementById('charConfig').style.display = 'none';
+}
+
+function previewImage(event) {
+	const file = event.target.files[0];
+	if (file) {
+		const reader = new FileReader();
+		reader.onload = function (e) {
+			document.getElementById('previewImage').src = e.target.result;
+			document.getElementById('previewImage').style.display = 'block';
+			document.getElementById('uploadPlaceholder').style.display = 'none';
+		};
+		reader.readAsDataURL(file);
+	}
+}
+
+function saveCharConfig() {
+	const name = document.getElementById('charName').value;
+	const imageData = document.getElementById('previewImage').src;
+
+	const config = {
+		name: name,
+		imageData: imageData !== 'data:' ? imageData : null
+	};
+
+	localStorage.setItem('charConfig', JSON.stringify(config));
+
+	// 如果有自定义图片，更新玩家图片
+	if (config.imageData) {
+		player.img.src = config.imageData;
+		player.imgLoaded = false;
+		player.img.onload = function () {
+			player.imgLoaded = true;
+		};
+	}
+
+	// 更新标题
+	updateTitle(name);
+
+	alert('配置已保存！');
+	hideCharConfig();
+}
+
+// 更新界面标题和页面title
+function updateTitle(charName) {
+	// 使用配置的角色名，默认为 Claude
+	const name = charName || 'Claude';
+	const titleText = `${name} VS 雷电`;
+
+	// 更新页面title
+	document.title = titleText;
+
+	// 更新主页标题
+	const menuTitle = document.querySelector('.menu-title');
+	if (menuTitle) {
+		menuTitle.textContent = titleText;
+	}
+
+	// 更新属性面板标题
+	const statsTitle = document.getElementById('statsTitle');
+	if (statsTitle) {
+		statsTitle.textContent = name;
+	}
+}
+
+function resetCharConfig() {
+	if (confirm('确定要重置所有角色配置吗？这将恢复默认设置。')) {
+		// 清除localStorage中的配置
+		localStorage.removeItem('charConfig');
+
+		// 重置界面上的输入
+		document.getElementById('charName').value = '';
+		document.getElementById('previewImage').src = '';
+		document.getElementById('previewImage').style.display = 'none';
+		document.getElementById('uploadPlaceholder').style.display = 'flex';
+
+		// 恢复默认角色图片
+		player.img.src = 'assets/textures/claude.png';
+		player.imgLoaded = false;
+		player.img.onload = function () {
+			player.imgLoaded = true;
+		};
+
+		// 恢复默认标题
+		updateTitle('');
+
+		alert('配置已重置！');
+	}
+}
+
+// 初始化时加载角色配置
+function loadCharConfig() {
+	const savedConfig = localStorage.getItem('charConfig');
+	if (savedConfig) {
+		const config = JSON.parse(savedConfig);
+		// 加载角色名字并更新标题
+		if (config.name) {
+			document.getElementById('charName').value = config.name;
+			updateTitle(config.name);
+		}
+		// 只有当有自定义图片时才替换，否则使用默认的 claude logo
+		if (config.imageData && config.imageData !== 'data:') {
+			player.img.src = config.imageData;
+			document.getElementById('previewImage').src = config.imageData;
+			document.getElementById('previewImage').style.display = 'block';
+			document.getElementById('uploadPlaceholder').style.display = 'none';
+			player.imgLoaded = false;
+			player.img.onload = function () {
+				player.imgLoaded = true;
+			};
+		}
+		// 如果没有配置或没有自定义图片，保持使用默认的 claude logo
+	}
+}
