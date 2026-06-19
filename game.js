@@ -38,6 +38,13 @@ function resetOverdrive() {
 }
 let keys = {};
 let inBossFight = false;
+
+// 触屏控制变量
+let touchStartX = 0;
+let touchStartY = 0;
+let touchStartTimestamp = 0;
+let isTouching = false;
+let skillButtonPressed = false;
 let bossFightLevel = 0;
 let highestBossLevelDefeated = 0;
 let lastEnemySpawn = 0;
@@ -103,6 +110,94 @@ document.addEventListener('keyup', e => { keys[e.key] = false; });
 canvas.addEventListener('click', () => {
 	if (!gameStarted) beginGame();
 });
+
+// 触屏事件处理
+canvas.addEventListener('touchstart', (e) => {
+	if (e.cancelable) {
+		e.preventDefault();
+	}
+	if (!gameStarted) {
+		beginGame();
+		return;
+	}
+	
+	const touch = e.touches[0];
+	// 将屏幕坐标转换为canvas坐标
+	const rect = canvas.getBoundingClientRect();
+	touchStartX = touch.clientX - rect.left;
+	touchStartY = touch.clientY - rect.top;
+	touchStartTimestamp = performance.now();
+	isTouching = true;
+	
+	// 按住屏幕：松开格挡，开始攻击
+	keys['k'] = false;
+	keys['j'] = true;
+});
+
+canvas.addEventListener('touchmove', (e) => {
+	if (e.cancelable) {
+		e.preventDefault();
+	}
+	if (!isTouching || !gameRunning) return;
+	
+	const touch = e.touches[0];
+	const rect = canvas.getBoundingClientRect();
+	touchStartX = touch.clientX - rect.left;
+	touchStartY = touch.clientY - rect.top;
+});
+
+canvas.addEventListener('touchend', (e) => {
+	if (e.cancelable) {
+		e.preventDefault();
+	}
+	isTouching = false;
+	keys['j'] = false;
+	
+	// 松开屏幕：停止攻击，开始格挡（持续格挡直到下次按下）
+	if (gameRunning && performance.now() >= player.parryCooldownUntil) {
+		keys['k'] = true;
+	}
+});
+
+// 技能按钮点击事件
+const skillButton = document.getElementById('skillButton');
+if (skillButton) {
+	skillButton.addEventListener('touchstart', (e) => {
+		e.preventDefault();
+		skillButtonPressed = true;
+	});
+	
+	skillButton.addEventListener('touchend', (e) => {
+		e.preventDefault();
+		if (skillButtonPressed && gameRunning && skillEnergy >= skillEnergyMax) {
+			skillEnergy -= skillEnergyMax;
+			fireHomingMissiles();
+			showNotification('🌟 Fire！');
+			updateSkillButtonState();
+		}
+		skillButtonPressed = false;
+	});
+	
+	skillButton.addEventListener('click', () => {
+		if (gameRunning && skillEnergy >= skillEnergyMax) {
+			skillEnergy -= skillEnergyMax;
+			fireHomingMissiles();
+			showNotification('🌟 Fire！');
+			updateSkillButtonState();
+		}
+	});
+}
+
+// 更新技能按钮状态
+function updateSkillButtonState() {
+	if (skillButton) {
+		if (skillEnergy >= skillEnergyMax) {
+			skillButton.classList.add('ready');
+		} else {
+			skillButton.classList.remove('ready');
+		}
+	}
+}
 
 // 初始化时加载角色配置
 loadCharConfig();
@@ -696,12 +791,39 @@ function update(timestamp) {
 	}
 
 	// 移动玩家
-	const movingLeft = keys['ArrowLeft'] || keys['a'];
-	const movingRight = keys['ArrowRight'] || keys['d'];
-	if (movingLeft && player.x - player.w / 2 > 0) player.x -= player.speed * gTimeScale;
-	if (movingRight && player.x + player.w / 2 < canvas.width) player.x += player.speed * gTimeScale;
-	if ((keys['ArrowUp'] || keys['w']) && player.y - player.h / 2 > 0) player.y -= player.speed * gTimeScale;
-	if ((keys['ArrowDown'] || keys['s']) && player.y + player.h / 2 < canvas.height) player.y += player.speed * gTimeScale;
+	let movingLeft = keys['ArrowLeft'] || keys['a'];
+	let movingRight = keys['ArrowRight'] || keys['d'];
+	let movingUp = keys['ArrowUp'] || keys['w'];
+	let movingDown = keys['ArrowDown'] || keys['s'];
+	
+	// 触屏模式：飞机向手指位置移动
+	if (isTouching && gameRunning) {
+		const dx = touchStartX - player.x;
+		const dy = touchStartY - player.y;
+		const distance = Math.sqrt(dx * dx + dy * dy);
+		
+		if (distance > 5) {
+			const speed = player.speed * 2 * gTimeScale;
+			player.x += (dx / distance) * speed;
+			player.y += (dy / distance) * speed;
+			
+			// 更新倾斜方向
+			movingLeft = dx < -5;
+			movingRight = dx > 5;
+			movingUp = dy < -5;
+			movingDown = dy > 5;
+		}
+	} else {
+		// 键盘模式移动
+		if (movingLeft && player.x - player.w / 2 > 0) player.x -= player.speed * gTimeScale;
+		if (movingRight && player.x + player.w / 2 < canvas.width) player.x += player.speed * gTimeScale;
+		if (movingUp && player.y - player.h / 2 > 0) player.y -= player.speed * gTimeScale;
+		if (movingDown && player.y + player.h / 2 < canvas.height) player.y += player.speed * gTimeScale;
+	}
+	
+	// 限制在画布范围内
+	player.x = Math.max(player.w / 2, Math.min(canvas.width - player.w / 2, player.x));
+	player.y = Math.max(player.h / 2, Math.min(canvas.height - player.h / 2, player.y));
 
 	// 左右移动时平滑倾斜，最大 20°
 	const maxTilt = 30 * Math.PI / 180;
@@ -1251,6 +1373,9 @@ function update(timestamp) {
 
 	// 更新属性面板
 	updateStatsPanel();
+	
+	// 更新技能按钮状态
+	updateSkillButtonState();
 }
 function showNotification(text) {
 	notifications.push({ text, born: performance.now() });

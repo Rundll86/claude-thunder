@@ -3,6 +3,7 @@
 
 <head>
 	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 	<title>Claude VS 雷电</title>
 	<style>
 		* {
@@ -24,6 +25,65 @@
 		#gameCanvas {
 			border: 2px solid #333;
 			display: block;
+		}
+
+		#touchControls {
+			position: fixed;
+			bottom: 20px;
+			right: 20px;
+			display: flex;
+			flex-direction: column;
+			gap: 15px;
+			z-index: 100;
+		}
+
+		.touch-btn {
+			width: 70px;
+			height: 70px;
+			border-radius: 50%;
+			display: flex;
+			flex-direction: column;
+			justify-content: center;
+			align-items: center;
+			background: rgba(217, 119, 6, 0.8);
+			border: 2px solid #ffe066;
+			box-shadow: 0 4px 15px rgba(217, 119, 6, 0.5);
+			cursor: pointer;
+			user-select: none;
+			transition: all 0.15s ease;
+		}
+
+		.touch-btn:active {
+			transform: scale(0.95);
+			background: rgba(255, 224, 102, 0.9);
+		}
+
+		.touch-btn.ready {
+			background: rgba(255, 224, 102, 0.8);
+			box-shadow: 0 0 20px rgba(255, 224, 102, 0.6);
+			animation: pulse 1s infinite;
+		}
+
+		@keyframes pulse {
+
+			0%,
+			100% {
+				box-shadow: 0 0 20px rgba(255, 224, 102, 0.6);
+			}
+
+			50% {
+				box-shadow: 0 0 30px rgba(255, 224, 102, 0.9);
+			}
+		}
+
+		.btn-icon {
+			font-size: 24px;
+		}
+
+		.btn-label {
+			font-size: 10px;
+			color: #fff;
+			margin-top: 2px;
 		}
 
 		#stats {
@@ -526,6 +586,12 @@
 		</div>
 	</div>
 	<canvas id="gameCanvas" width="480" height="700"></canvas>
+	<div id="touchControls">
+		<div id="skillButton" class="touch-btn skill-btn">
+			<span class="btn-icon">🌟</span>
+			<span class="btn-label">技能</span>
+		</div>
+	</div>
 	<div id="stats">
 		<h3 id="statsTitle">Claude</h3>
 		<div class="stat-row">
