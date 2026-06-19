@@ -1007,7 +1007,7 @@ function update(timestamp) {
 				playerEnergyRegenEfficiency = Math.min(3, playerEnergyRegenEfficiency + 0.05);
 				showNotification('🎈 能量再生效率 +5%');
 			} else if (p.type === 'pierce') {
-				playerPierceChance = Math.min(1, playerPierceChance + 0.05);
+				playerPierceChance = Math.min(0.9, playerPierceChance + 0.05);
 				showNotification('🌀 穿透 +5%');
 			}
 			return false;
