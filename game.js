@@ -64,6 +64,7 @@ const player = {
 	imgLoaded: false,
 	bulletCount: 1,
 	ricochetChance: 0,
+	overdriveRicochet: 0, // 超载反弹次数（超频状态生效）
 	shieldActive: false,
 	shieldHits: 0,
 	shieldExpiry: 0,
@@ -488,6 +489,7 @@ function updateStatsPanel() {
 	document.getElementById('statEnergyRegen').textContent = playerEnergyRegenEfficiency.toFixed(2);
 	document.getElementById('statPierce').textContent = `${(playerPierceChance * 100).toFixed(0)}%`;
 	document.getElementById('statRicochet').textContent = `${(playerRicochetChance * 100).toFixed(0)}%`;
+	document.getElementById('statOverloadRicochet').textContent = player.overdriveRicochet > 0 ? `${player.overdriveRicochet}次` : '-';
 
 	// 护盾状态
 	const now = performance.now();
@@ -858,8 +860,27 @@ function update(timestamp) {
 			b.x += Math.sin(b.angle || 0) * speed * gTimeScale;
 			b.y -= Math.cos(b.angle || 0) * speed * gTimeScale;
 		} else {
-			b.x += Math.sin(b.angle || 0) * playerBulletSpeed * gTimeScale;
-			b.y -= Math.cos(b.angle || 0) * playerBulletSpeed * gTimeScale;
+			// 超载反弹：超频状态下普通子弹可以反弹
+			let bx = b.x + Math.sin(b.angle || 0) * playerBulletSpeed * gTimeScale;
+			let by = b.y - Math.cos(b.angle || 0) * playerBulletSpeed * gTimeScale;
+			// 初始化反弹计数
+			if (!b._ricochetRemaining) b._ricochetRemaining = 0;
+			// 检测边缘反弹
+			if (overdriveActive && player.overdriveRicochet > 0 && b._ricochetRemaining < player.overdriveRicochet) {
+				const margin = 10;
+				const stepBack = 20; // 反弹后往内步进距离，避免尾部再次触发反弹
+				if (bx < margin || bx > canvas.width - margin) {
+					b.angle = Math.PI - b.angle; // 左右边缘反弹
+					bx = bx < margin ? margin + stepBack : canvas.width - margin - stepBack;
+					b._ricochetRemaining++;
+				} else if (by < margin || by > canvas.height - margin) {
+					b.angle = -b.angle; // 上下边缘反弹
+					by = by < margin ? margin + stepBack : canvas.height - margin - stepBack;
+					b._ricochetRemaining++;
+				}
+			}
+			b.x = bx;
+			b.y = by;
 		}
 	});
 
@@ -1009,6 +1030,9 @@ function update(timestamp) {
 			} else if (p.type === 'pierce') {
 				playerPierceChance = Math.min(0.9, playerPierceChance + 0.05);
 				showNotification('🌀 穿透 +5%');
+			} else if (p.type === 'overloadricochet') {
+				player.overdriveRicochet++;
+				showNotification('🔦 超频反弹 +1');
 			}
 			return false;
 		}
@@ -1055,7 +1079,7 @@ function update(timestamp) {
 					if (e.isBoss) {
 						inBossFight = false;
 						highestBossLevelDefeated = bossFightLevel;
-						const dropTypes = ['multishot', 'atkspeed', 'shield', 'bulletspeed', 'movespeed', 'ricochet', 'energyregen', 'pierce'];
+						const dropTypes = ['multishot', 'atkspeed', 'shield', 'bulletspeed', 'movespeed', 'ricochet', 'energyregen', 'pierce', 'overloadricochet'];
 						dropTypes.forEach((type, i) => {
 							powerups.push({ x: e.x + (i - 4) * 25, y: e.y, type });
 						});
@@ -1326,7 +1350,8 @@ function draw() {
 			shield: { color: '#7fff7f', label: '🛡️' },
 			ricochet: { color: '#ff9ef7', label: '🔀' },
 			energyregen: { color: '#4dabf7', label: '🎈' },
-			pierce: { color: '#b8f7ff', label: '🌀' }
+			pierce: { color: '#b8f7ff', label: '🌀' },
+			overloadricochet: { color: '#ff4400', label: '⚡' }
 		}[p.type];
 		ctx.save();
 		ctx.shadowColor = cfg.color; ctx.shadowBlur = 14;
@@ -1448,6 +1473,7 @@ function resetGameState() {
 	player.x = canvas.width / 2; player.y = canvas.height - 80;
 	player.bulletCount = 1;
 	player.ricochetChance = 0;
+	player.overdriveRicochet = 0;
 	player.shieldActive = false; player.shieldHits = 0; player.shieldExpiry = 0;
 	player.parryActive = false; player.parryStart = 0; player.parryCooldownUntil = 0;
 	player.invincibleUntil = 0;
