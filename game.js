@@ -4,6 +4,31 @@ const ctx = canvas.getContext('2d');
 // 调试用：设置游戏开始时直接跳到的关卡（0表示正常从第1关开始）
 const DEBUG_START_LEVEL = 0;
 
+// 画布原始尺寸
+const CANVAS_WIDTH = 480;
+const CANVAS_HEIGHT = 700;
+
+// 响应式调整画布大小
+function resizeCanvas() {
+	const container = document.getElementById('gameContainer');
+	if (!container) return;
+	
+	const containerWidth = container.clientWidth;
+	const containerHeight = container.clientHeight;
+	
+	// 计算缩放比例，保持宽高比
+	const scaleX = containerWidth / CANVAS_WIDTH;
+	const scaleY = containerHeight / CANVAS_HEIGHT;
+	const scale = Math.min(scaleX, scaleY);
+	
+	// 设置画布样式大小
+	canvas.style.width = `${CANVAS_WIDTH * scale}px`;
+	canvas.style.height = `${CANVAS_HEIGHT * scale}px`;
+}
+
+// 监听窗口大小变化
+window.addEventListener('resize', resizeCanvas);
+
 let score = 0, lives = 3, level = 1, gameRunning = false;
 let gameStarted = false;
 let notifications = [];
@@ -122,10 +147,12 @@ canvas.addEventListener('touchstart', (e) => {
 	}
 	
 	const touch = e.touches[0];
-	// 将屏幕坐标转换为canvas坐标
+	// 将屏幕坐标转换为canvas原始坐标（考虑缩放）
 	const rect = canvas.getBoundingClientRect();
-	touchStartX = touch.clientX - rect.left;
-	touchStartY = touch.clientY - rect.top;
+	const scaleX = canvas.width / rect.width;
+	const scaleY = canvas.height / rect.height;
+	touchStartX = (touch.clientX - rect.left) * scaleX;
+	touchStartY = (touch.clientY - rect.top) * scaleY;
 	touchStartTimestamp = performance.now();
 	isTouching = true;
 	
@@ -142,8 +169,10 @@ canvas.addEventListener('touchmove', (e) => {
 	
 	const touch = e.touches[0];
 	const rect = canvas.getBoundingClientRect();
-	touchStartX = touch.clientX - rect.left;
-	touchStartY = touch.clientY - rect.top;
+	const scaleX = canvas.width / rect.width;
+	const scaleY = canvas.height / rect.height;
+	touchStartX = (touch.clientX - rect.left) * scaleX;
+	touchStartY = (touch.clientY - rect.top) * scaleY;
 });
 
 canvas.addEventListener('touchend', (e) => {
@@ -202,6 +231,7 @@ function updateSkillButtonState() {
 // 初始化时加载角色配置
 loadCharConfig();
 initDragUpload();
+resizeCanvas();
 
 function spawnBoss(lvl) {
 	const now = performance.now();
