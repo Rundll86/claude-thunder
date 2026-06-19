@@ -870,11 +870,11 @@ function update(timestamp) {
 				const margin = 10;
 				const stepBack = 30; // 反弹后往内步进距离，避免尾部再次触发反弹
 				if (bx < margin || bx > canvas.width - margin) {
-					b.angle = Math.PI - b.angle; // 左右边缘反弹
+					b.angle = -b.angle; // 左右边缘反弹（水平翻转）
 					bx = bx < margin ? margin + stepBack : canvas.width - margin - stepBack;
 					b._ricochetRemaining++;
 				} else if (by < margin || by > canvas.height - margin) {
-					b.angle = -b.angle; // 上下边缘反弹
+					b.angle = Math.PI - b.angle; // 上下边缘反弹（垂直翻转）
 					by = by < margin ? margin + stepBack : canvas.height - margin - stepBack;
 					b._ricochetRemaining++;
 				}
@@ -1070,7 +1070,7 @@ function update(timestamp) {
 						const predX = nearest.x;
 						const predY = nearest.y + nearest.speed * travelFrames;
 						const angle = Math.atan2(predX - b.x, -(predY - b.y));
-						bullets.push({ x: b.x, y: b.y, angle, damage: 1, _ricochet: (b._ricochet || 0) + 1 });
+						bullets.push({ x: b.x, y: b.y, angle, damage: 1, _ricochet: (b._ricochet || 0) + 1, _ricochetRemaining: b._ricochetRemaining });
 					}
 				}
 				if (e.hp <= 0) {
