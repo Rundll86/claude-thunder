@@ -566,71 +566,6 @@ function updateStatsPanel() {
 	}
 }
 
-function drawStartMenu() {
-	ctx.save();
-	ctx.fillStyle = 'rgba(5, 10, 26, 0.72)';
-	ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-	const cx = canvas.width / 2;
-	const panelW = Math.min(520, canvas.width - 70);
-	const panelH = 400;
-	const panelX = cx - panelW / 2;
-	const panelY = canvas.height / 2 - panelH / 2;
-
-	ctx.shadowColor = '#d97706';
-	ctx.shadowBlur = 28;
-	ctx.fillStyle = 'rgba(12, 18, 42, 0.88)';
-	ctx.strokeStyle = '#d97706';
-	ctx.lineWidth = 2;
-	ctx.beginPath();
-	ctx.roundRect(panelX, panelY, panelW, panelH, 22);
-	ctx.fill();
-	ctx.stroke();
-
-	ctx.shadowBlur = 18;
-	ctx.fillStyle = '#ffe066';
-	ctx.font = 'bold 42px sans-serif';
-	ctx.textAlign = 'center';
-	ctx.textBaseline = 'middle';
-	ctx.fillText('Claude VS Thunder', cx, panelY + 72);
-
-	ctx.shadowBlur = 0;
-	ctx.fillStyle = '#e6edf7';
-	ctx.font = '18px sans-serif';
-	const instructions = [
-		'操作说明',
-		'WSAD：移动',
-		'J：射击',
-		'K：格挡',
-		'空格：释放技能，需要消耗能量',
-		'攻击命中敌人、触发完美格挡、受击时都会获得能量'
-	];
-	instructions.forEach((text, i) => {
-		ctx.font = i === 0 ? 'bold 22px sans-serif' : '17px sans-serif';
-		ctx.fillStyle = i === 0 ? '#4dabf7' : '#e6edf7';
-		ctx.fillText(text, cx, panelY + 132 + i * 30);
-	});
-
-	ctx.shadowColor = '#ffe066';
-	ctx.shadowBlur = 16;
-	ctx.fillStyle = 'rgba(255, 224, 102, 0.16)';
-	ctx.strokeStyle = '#ffe066';
-	ctx.lineWidth = 2;
-	ctx.beginPath();
-	ctx.roundRect(cx - 110, panelY + 296, 220, 48, 24);
-	ctx.fill();
-	ctx.stroke();
-	ctx.fillStyle = '#ffe066';
-	ctx.font = 'bold 20px sans-serif';
-	ctx.fillText('开始游戏', cx, panelY + 320);
-
-	ctx.shadowBlur = 0;
-	ctx.fillStyle = '#9fb3c8';
-	ctx.font = '13px sans-serif';
-	ctx.fillText('按 Enter / 空格 或点击开始', cx, panelY + 360);
-	ctx.restore();
-}
-
 function drawExplosion(ex) {
 	const progress = ex.frame / ex.maxFrame;
 	const alpha = 1 - progress;
@@ -1318,6 +1253,9 @@ function showNotification(text) {
 	if (notifications.length > 4) notifications.shift();
 }
 function draw() {
+	// 游戏未开始时不绘制
+	if (!gameStarted) return;
+
 	// 摄像机抖动
 	ctx.save();
 	if (cameraShake.intensity > 0) {
@@ -1346,11 +1284,6 @@ function draw() {
 		ctx.fill();
 		ctx.restore();
 	});
-
-	if (!gameStarted) {
-		drawStartMenu();
-		return;
-	}
 
 	// 敌人
 	enemies.forEach(e => drawEnemy(e));
@@ -1504,6 +1437,7 @@ function resetGameState() {
 function beginGame() {
 	gameStarted = true;
 	gameRunning = true;
+	document.getElementById('startMenu').style.display = 'none';
 	resetGameState();
 	const startLevelNum = DEBUG_START_LEVEL > 0 ? DEBUG_START_LEVEL : 1;
 	startLevel(startLevelNum);

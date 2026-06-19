@@ -203,6 +203,93 @@
 				transform: rotate(360deg);
 			}
 		}
+
+		#startMenu {
+			position: fixed;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+			background: rgba(5, 10, 26, 0.85);
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			z-index: 100;
+		}
+
+		.menu-panel {
+			background: rgba(12, 18, 42, 0.95);
+			border: 2px solid #d97706;
+			border-radius: 22px;
+			padding: 40px 50px;
+			text-align: center;
+			box-shadow: 0 0 30px rgba(217, 119, 6, 0.4);
+			max-width: 520px;
+			width: 90%;
+		}
+
+		.menu-title {
+			color: #ffe066;
+			font-size: 42px;
+			font-weight: bold;
+			text-shadow: 0 0 20px rgba(255, 224, 102, 0.5);
+			margin-bottom: 30px;
+		}
+
+		.menu-instructions h2 {
+			color: #4dabf7;
+			font-size: 22px;
+			margin-bottom: 15px;
+		}
+
+		.menu-instructions p {
+			color: #e6edf7;
+			font-size: 17px;
+			margin: 8px 0;
+		}
+
+		.menu-instructions .key {
+			display: inline-block;
+			background: rgba(217, 119, 6, 0.2);
+			border: 1px solid #d97706;
+			border-radius: 4px;
+			padding: 2px 8px;
+			color: #ffe066;
+			font-weight: bold;
+			min-width: 40px;
+		}
+
+		.menu-instructions .hint {
+			color: #9fb3c8;
+			font-size: 14px;
+			margin-top: 15px;
+		}
+
+		.start-btn {
+			margin-top: 30px;
+			padding: 12px 40px;
+			font-size: 20px;
+			font-weight: bold;
+			color: #ffe066;
+			background: rgba(255, 224, 102, 0.16);
+			border: 2px solid #ffe066;
+			border-radius: 24px;
+			cursor: pointer;
+			transition: all 0.3s ease;
+			box-shadow: 0 0 15px rgba(255, 224, 102, 0.3);
+		}
+
+		.start-btn:hover {
+			background: rgba(255, 224, 102, 0.3);
+			box-shadow: 0 0 25px rgba(255, 224, 102, 0.5);
+			transform: scale(1.05);
+		}
+
+		.start-hint {
+			color: #9fb3c8;
+			font-size: 13px;
+			margin-top: 20px;
+		}
 	</style>
 	<link rel="shortcut icon" href="assets\textures\claude.png" type="image/x-icon">
 </head>
@@ -211,6 +298,21 @@
 	<div id="loading">
 		<div class="spinner"></div>
 		<p>正在加载…</p>
+	</div>
+	<div id="startMenu">
+		<div class="menu-panel">
+			<h1 class="menu-title">Claude VS Thunder</h1>
+			<div class="menu-instructions">
+				<h2>操作说明</h2>
+				<p><span class="key">WSAD</span> 移动</p>
+				<p><span class="key">J</span> 射击</p>
+				<p><span class="key">K</span> 格挡</p>
+				<p><span class="key">空格</span> 释放技能（消耗能量）</p>
+				<p class="hint">攻击命中敌人、触发完美格挡、受击时都会获得能量</p>
+			</div>
+			<button class="start-btn" onclick="beginGame()">开始游戏</button>
+			<p class="start-hint">按 Enter / 空格 或点击按钮开始</p>
+		</div>
 	</div>
 	<canvas id="gameCanvas" width="480" height="700"></canvas>
 	<div id="stats">
