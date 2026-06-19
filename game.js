@@ -1131,7 +1131,7 @@ function update(timestamp) {
 					player.invincibleUntil = timestamp + 2000;
 					// 完美格挡：免伤并向所有敌人平均分配反击子弹；无敌人则随机散射
 					let bulletCount = overdriveActive
-						? player.bulletCount * 3 + 1
+						? player.bulletCount * 6 + 1
 						: player.bulletCount + 1;
 					if (enemies.length > 0) {
 						// 把子弹平均分配给每个敌人
