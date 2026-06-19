@@ -489,7 +489,7 @@ function updateStatsPanel() {
 	document.getElementById('statEnergyRegen').textContent = playerEnergyRegenEfficiency.toFixed(2);
 	document.getElementById('statPierce').textContent = `${(playerPierceChance * 100).toFixed(0)}%`;
 	document.getElementById('statRicochet').textContent = `${(playerRicochetChance * 100).toFixed(0)}%`;
-	document.getElementById('statOverloadRicochet').textContent = player.overdriveRicochet > 0 ? `${player.overdriveRicochet}次` : '-';
+	document.getElementById('statOverloadRicochet').textContent = player.overdriveRicochet > 0 ? `${player.overdriveRicochet}` : '0';
 
 	// 护盾状态
 	const now = performance.now();
@@ -868,7 +868,7 @@ function update(timestamp) {
 			// 检测边缘反弹
 			if (overdriveActive && player.overdriveRicochet > 0 && b._ricochetRemaining < player.overdriveRicochet) {
 				const margin = 10;
-				const stepBack = 20; // 反弹后往内步进距离，避免尾部再次触发反弹
+				const stepBack = 30; // 反弹后往内步进距离，避免尾部再次触发反弹
 				if (bx < margin || bx > canvas.width - margin) {
 					b.angle = Math.PI - b.angle; // 左右边缘反弹
 					bx = bx < margin ? margin + stepBack : canvas.width - margin - stepBack;
